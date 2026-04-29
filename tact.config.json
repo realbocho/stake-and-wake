@@ -1,0 +1,18 @@
+{
+  "$schema": "http://raw.githubusercontent.com/tact-lang/tact/main/src/config/configSchema.json",
+  "projects": [
+    {
+      "name": "StakeWakeVault",
+      "path": "./contracts/StakeWakeVault.tact",
+      "output": "./build/StakeWakeVault",
+      "options": {
+        "interfacesGetter": true,
+        "ipfsAbiGetter": true,
+        "safety": {
+          "nullChecks": true
+        }
+      },
+      "mode": "full"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "stake-and-wake",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build:contracts": "tact --config tact.config.json",
+    "check:contracts": "tact --config tact.config.json --check"
+  },
+  "dependencies": {
+    "@ton/core": "^0.62.0",
+    "@tonconnect/ui-react": "^2.0.9",
+    "jose": "^5.9.6",
+    "next": "^16.0.1",
+    "postgres": "^3.4.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@tact-lang/compiler": "^1.6.13",
+    "typescript": "^5.7.3"
+  }
+}
