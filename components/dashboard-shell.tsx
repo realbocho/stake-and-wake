@@ -442,16 +442,6 @@ export function DashboardShell() {
             </div>
           </div>
 
-          <div className="panel stack">
-            <div className="label">Anti-Cheat Policy</div>
-            <div className="list">
-              {data?.antiCheatNotes.map((item) => (
-                <div className="list-item" key={item}>
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="stack">
