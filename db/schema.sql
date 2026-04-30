@@ -48,6 +48,9 @@ create table if not exists challenge_participation (
   settled_reward_ton numeric(18, 4) not null default 0,
   sleep_locked_at timestamptz,
   verified_at timestamptz,
+  -- [추가] 챌린지 기간 정보
+  duration_days integer not null default 7,
+  ends_at timestamptz,
   created_at timestamptz not null default now(),
   unique (challenge_id, user_id)
 );
@@ -83,6 +86,8 @@ create table if not exists payment_intent (
   payload_base64 text not null,
   status text not null,
   submitted_boc text,
+  -- [추가] 온체인 검증된 트랜잭션 해시
+  tx_hash text,
   submitted_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -90,3 +95,8 @@ create table if not exists payment_intent (
 insert into group_room (id, name, invite_code)
 values ('founders-circle', 'Founders Circle', 'FOUNDERS10')
 on conflict (id) do nothing;
+
+-- [추가] 마이그레이션: 기존 DB에 컬럼 추가 시 사용
+-- alter table challenge_participation add column if not exists duration_days integer not null default 7;
+-- alter table challenge_participation add column if not exists ends_at timestamptz;
+-- alter table payment_intent add column if not exists tx_hash text;
