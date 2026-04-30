@@ -22,6 +22,14 @@ type DashboardPayload = {
   antiCheatNotes: string[];
 };
 
+type WithdrawIntent = {
+  to: string;
+  amountNano: string;
+  withdrawableTon: number;
+  payload: string;
+  validUntil: number;
+};
+
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -71,7 +79,6 @@ function getDeviceFingerprint() {
   return created;
 }
 
-// Wake time options: 5:00 AM to 7:00 AM in 30-minute increments
 const WAKE_TIME_OPTIONS = [
   { value: "05:00", label: "5:00 AM" },
   { value: "05:30", label: "5:30 AM" },
@@ -80,7 +87,6 @@ const WAKE_TIME_OPTIONS = [
   { value: "07:00", label: "7:00 AM" },
 ];
 
-// Challenge duration options (minimum 7 days)
 const DURATION_OPTIONS = [
   { value: 7,  label: "7 Days" },
   { value: 14, label: "14 Days" },
@@ -106,6 +112,9 @@ export function DashboardShell() {
     authenticated &&
     walletAddress &&
     data?.user?.walletAddress !== walletAddress;
+
+  const canWithdraw =
+    authenticated && (data?.user?.netProfitTon ?? 0) > 0;
 
   const refresh = useMemo(
     () => async () => {
@@ -212,6 +221,37 @@ export function DashboardShell() {
     });
   };
 
+  // ── 출금 ──────────────────────────────────────────────────────────────────
+  const withdraw = () => {
+    startTransition(() => {
+      if (!walletAddress) {
+        setError("출금 전 지갑을 연결해주세요.");
+        return Promise.resolve();
+      }
+
+      return getJson<WithdrawIntent>("/api/withdraw", { method: "POST" })
+        .then(async (intent) => {
+          setStatusMessage(`${intent.withdrawableTon} TON 출금 중... 지갑에서 승인해주세요.`);
+          await tonConnectUI.sendTransaction({
+            validUntil: intent.validUntil,
+            messages: [
+              {
+                address: intent.to,
+                amount: intent.amountNano,
+                payload: intent.payload
+              }
+            ]
+          });
+          setStatusMessage("출금 완료! 지갑을 확인해주세요.");
+          await refresh();
+        })
+        .catch((cause: unknown) => {
+          const message = cause instanceof Error ? cause.message : "출금 실패";
+          setError(message);
+        });
+    });
+  };
+
   const enableSleepMode = () => {
     startTransition(() => {
       getJson("/api/challenges/sleep", {
@@ -310,6 +350,9 @@ export function DashboardShell() {
               </button>
               <button className="button ghost" onClick={enableSleepMode} disabled={pending || !authenticated}>
                 Enable Sleep Lock
+              </button>
+              <button className="button primary" onClick={withdraw} disabled={pending || !canWithdraw}>
+                Withdraw {canWithdraw ? formatTon(data?.user?.netProfitTon ?? 0) : ""}
               </button>
             </div>
             {!authenticated ? (
@@ -441,7 +484,6 @@ export function DashboardShell() {
               </button>
             </div>
           </div>
-
         </div>
 
         <div className="stack">
