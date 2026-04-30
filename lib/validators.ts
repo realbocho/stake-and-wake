@@ -17,6 +17,7 @@ export const stakeSchema = z.object({
   wakeTime: z.enum(VALID_WAKE_TIMES, {
     errorMap: () => ({ message: "Wake time must be between 5:00 AM and 7:00 AM (30-min intervals)." })
   }),
+  // ── [수정] durationDays를 stake route에서도 받아서 처리
   durationDays: z.number().int().min(7, { message: "Challenge duration must be at least 7 days." }).max(30)
 });
 
@@ -29,8 +30,9 @@ export const activitySchema = z.object({
   timestamp: z.string().datetime()
 });
 
+// ── [수정] checkInSchema: reactionMs와 response는 클라이언트가 보내도 서버에서 무시
 export const checkInSchema = z.object({
   challengeId: z.string().uuid().or(z.string().min(8)),
-  response: z.string().min(1),
-  reactionMs: z.number().int().min(0).max(60000)
+  response: z.string().min(1).optional(),
+  reactionMs: z.number().int().min(0).max(60000).optional()
 });
