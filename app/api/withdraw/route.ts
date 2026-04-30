@@ -13,7 +13,7 @@ import { beginCell } from "@ton/core";
  *
  * 임시로 0x00000000 사용 — 반드시 실제 opcode로 교체해야 함!
  */
-const CLAIM_OPCODE = 0x00000000; // ← TODO: 빌드 후 실제 opcode로 교체
+const CLAIM_OPCODE = 0x59A1C3E8; // ← TODO: 빌드 후 실제 opcode로 교체
 
 function buildClaimPayload(roundId: number): string {
   return encodeBase64(
