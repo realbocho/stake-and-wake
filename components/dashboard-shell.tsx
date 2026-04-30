@@ -71,6 +71,23 @@ function getDeviceFingerprint() {
   return created;
 }
 
+// Wake time options: 5:00 AM to 7:00 AM in 30-minute increments
+const WAKE_TIME_OPTIONS = [
+  { value: "05:00", label: "5:00 AM" },
+  { value: "05:30", label: "5:30 AM" },
+  { value: "06:00", label: "6:00 AM" },
+  { value: "06:30", label: "6:30 AM" },
+  { value: "07:00", label: "7:00 AM" },
+];
+
+// Challenge duration options (minimum 7 days)
+const DURATION_OPTIONS = [
+  { value: 7,  label: "7 Days" },
+  { value: 14, label: "14 Days" },
+  { value: 21, label: "21 Days" },
+  { value: 30, label: "30 Days" },
+];
+
 export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
@@ -78,6 +95,7 @@ export function DashboardShell() {
   const [pending, startTransition] = useTransition();
   const [stakeAmount, setStakeAmount] = useState("3");
   const [wakeTime, setWakeTime] = useState("05:30");
+  const [durationDays, setDurationDays] = useState(7);
   const [inviteCode, setInviteCode] = useState("");
   const [groupInviteCode, setGroupInviteCode] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -133,9 +151,7 @@ export function DashboardShell() {
       const hidden = document.visibilityState !== "visible";
       void fetch("/api/challenges/activity", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           hidden,
           timestamp: new Date().toISOString()
@@ -158,6 +174,7 @@ export function DashboardShell() {
         body: JSON.stringify({
           stakeAmountTon: Number(stakeAmount),
           wakeTime,
+          durationDays,
           walletAddress
         })
       })
@@ -180,11 +197,12 @@ export function DashboardShell() {
               intentId: intent.id,
               stakeAmountTon: Number(stakeAmount),
               wakeTime,
+              durationDays,
               boc: result.boc
             })
           });
 
-          setStatusMessage("Stake transaction submitted. Waiting for settlement window.");
+          setStatusMessage(`Challenge started! ${durationDays}-day commitment locked in.`);
           await refresh();
         })
         .catch((cause: unknown) => {
@@ -198,9 +216,7 @@ export function DashboardShell() {
     startTransition(() => {
       getJson("/api/challenges/sleep", {
         method: "POST",
-        body: JSON.stringify({
-          deviceId: getDeviceFingerprint()
-        })
+        body: JSON.stringify({ deviceId: getDeviceFingerprint() })
       })
         .then(refresh)
         .catch((cause: unknown) => {
@@ -236,9 +252,7 @@ export function DashboardShell() {
     startTransition(() => {
       getJson<WalletBindingPayload>("/api/wallet/bind", {
         method: "POST",
-        body: JSON.stringify({
-          walletAddress
-        })
+        body: JSON.stringify({ walletAddress })
       })
         .then(refresh)
         .catch((cause: unknown) => {
@@ -251,9 +265,7 @@ export function DashboardShell() {
 
   const claimReferral = () => {
     startTransition(() => {
-      getJson("/api/referrals/claim", {
-        method: "POST"
-      })
+      getJson("/api/referrals/claim", { method: "POST" })
         .then(refresh)
         .catch((cause: unknown) => {
           const message =
@@ -267,9 +279,7 @@ export function DashboardShell() {
     startTransition(() => {
       getJson("/api/groups/join", {
         method: "POST",
-        body: JSON.stringify({
-          inviteCode: groupInviteCode
-        })
+        body: JSON.stringify({ inviteCode: groupInviteCode })
       })
         .then(() => {
           setStatusMessage("Group joined successfully.");
@@ -290,12 +300,13 @@ export function DashboardShell() {
             <span className="eyebrow">Telegram Mini App · TON Challenge</span>
             <h1 className="title">Stake your discipline. Wake before dawn.</h1>
             <p className="subtitle">
-              Deposit TON at night, stay off your phone, and pass a live wake-up
-              verification between 04:00 and 06:00 to split the losers&apos; pool.
+              Deposit TON, stay off your phone, and pass a live wake-up
+              verification between 5:00 AM and 7:00 AM every day to split
+              the losers&apos; pool at the end of your challenge period.
             </p>
             <div className="row">
               <button className="button accent" onClick={submitStake} disabled={pending || !authenticated}>
-                Join Tonight
+                Join Challenge
               </button>
               <button className="button ghost" onClick={enableSleepMode} disabled={pending || !authenticated}>
                 Enable Sleep Lock
@@ -303,7 +314,7 @@ export function DashboardShell() {
             </div>
             {!authenticated ? (
               <div className="alert">
-                Open this inside Telegram so the server can verify your `initData`
+                Open this inside Telegram so the server can verify your initData
                 and create your account automatically.
               </div>
             ) : null}
@@ -346,15 +357,15 @@ export function DashboardShell() {
             <div className="muted">Bronze, Silver, Gold, and Diamond badge ladder.</div>
           </div>
           <div className="panel kpi">
-            <div className="label">Tonight Pool</div>
+            <div className="label">Active Pool</div>
             <div className="value mono">{data ? formatTon(data.challenge.poolTon) : "--"}</div>
-            <div className="muted">Failed stakes minus platform fee are split among winners.</div>
+            <div className="muted">Failed stakes minus platform fee split among winners.</div>
           </div>
           <div className="panel kpi">
             <div className="label">Referral Credits</div>
             <div className="value mono">{data ? formatTon(data.referralBalanceTon) : "--"}</div>
             <button className="button ghost" onClick={claimReferral} disabled={pending || !authenticated}>
-              Claim Trial Credits
+              Claim Credits
             </button>
           </div>
         </div>
@@ -365,7 +376,7 @@ export function DashboardShell() {
           <div className="panel stack">
             <div className="row space-between">
               <div>
-                <div className="label">Tonight Challenge</div>
+                <div className="label">Challenge Setup</div>
                 <div className="value">{data?.challenge.title ?? "Morning Discipline Pool"}</div>
               </div>
               <span className="badge">
@@ -386,23 +397,47 @@ export function DashboardShell() {
 
               <label className="stack">
                 <span className="label">Target Wake Time</span>
-                <input
+                <select
                   className="input mono"
-                  type="time"
-                  min="04:00"
-                  max="06:00"
                   value={wakeTime}
                   onChange={(event) => setWakeTime(event.target.value)}
-                />
+                >
+                  {WAKE_TIME_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </label>
+
+              <label className="stack">
+                <span className="label">Challenge Duration</span>
+                <select
+                  className="input mono"
+                  value={durationDays}
+                  onChange={(event) => setDurationDays(Number(event.target.value))}
+                >
+                  {DURATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="alert info">
+              You are committing to wake up at <strong>{WAKE_TIME_OPTIONS.find(o => o.value === wakeTime)?.label}</strong> every
+              day for <strong>{durationDays} days</strong>. Participants who fail will forfeit
+              their stake to the winners at the end of the period.
             </div>
 
             <div className="row">
               <button className="button accent" onClick={submitStake} disabled={pending || !authenticated}>
-                Pay and Stake
+                Pay and Start Challenge
               </button>
               <button className="button primary" onClick={completeCheckIn} disabled={pending || !authenticated}>
-                Simulate Wake Verification
+                Simulate Wake Check-In
               </button>
             </div>
           </div>
@@ -429,8 +464,8 @@ export function DashboardShell() {
               onChange={(event) => setInviteCode(event.target.value)}
             />
             <p className="muted">
-              Every valid invite can add trial credits. Weekly groups of 10+ members
-              who all succeed for seven days unlock an extra 5 TON per member.
+              Every valid invite adds trial credits. Groups of 10+ members who
+              all succeed for seven days unlock an extra 5 TON per member.
             </p>
           </div>
 
@@ -448,7 +483,7 @@ export function DashboardShell() {
           </div>
 
           <div className="panel stack">
-            <div className="label">Weekly Leaders</div>
+            <div className="label">Leaderboard</div>
             <div className="list">
               {data?.leaderboard.map((entry, index) => (
                 <div className="list-item" key={entry.userId}>
