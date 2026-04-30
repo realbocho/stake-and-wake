@@ -12,7 +12,8 @@ export async function POST(request: Request) {
     await stakeForTonight({
       userId: session.userId,
       stakeAmountTon: body.stakeAmountTon,
-      wakeTime: body.wakeTime
+      wakeTime: body.wakeTime,
+      durationDays: body.durationDays
     });
     return ok({ ok: true });
   } catch (cause) {
