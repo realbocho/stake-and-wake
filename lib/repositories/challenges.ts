@@ -29,6 +29,14 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
   };
 }
 
+// ── [수정] HH:MM 문자열 → 오늘 날짜 기준 Date 객체 ─────────────────────────
+function timeStringToTodayDate(hhmm: string): Date {
+  const [h, m] = hhmm.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 export async function getActiveChallengeForUser(userId: string) {
   const sql = getSql();
   const [row] = await sql<ChallengeRow[]>`
@@ -76,26 +84,34 @@ export async function getOrCreateTonightChallenge() {
   } satisfies ChallengeView;
 }
 
+// ── [수정] durationDays 파라미터 추가 + DB 저장 ───────────────────────────
 export async function stakeForTonight(input: {
   userId: string;
   stakeAmountTon: number;
   wakeTime: string;
+  durationDays: number;
 }) {
   const sql = getSql();
   const challenge = await getOrCreateTonightChallenge();
+  const endsAt = new Date();
+  endsAt.setDate(endsAt.getDate() + input.durationDays);
+
   await sql.begin(async (transaction) => {
     await transaction`
       insert into challenge_participation (
         id, challenge_id, user_id, stake_amount_ton, wake_time, random_check_in_from,
-        random_check_in_to, status, anti_cheat_flags
+        random_check_in_to, status, anti_cheat_flags, duration_days, ends_at
       ) values (
-        ${randomUUID()}, ${challenge.id}, ${input.userId}, ${input.stakeAmountTon}, ${input.wakeTime},
-        '05:18', '05:42', 'staked', '{}'
+        ${randomUUID()}, ${challenge.id}, ${input.userId}, ${input.stakeAmountTon},
+        ${input.wakeTime}, '05:18', '05:42', 'staked', '{}',
+        ${input.durationDays}, ${endsAt.toISOString()}
       )
       on conflict (challenge_id, user_id)
       do update set
         stake_amount_ton = excluded.stake_amount_ton,
         wake_time = excluded.wake_time,
+        duration_days = excluded.duration_days,
+        ends_at = excluded.ends_at,
         status = 'staked'
     `;
 
@@ -130,6 +146,7 @@ export async function markSleepMode(input: { userId: string; deviceIdHash: strin
     where p.challenge_id = c.id
       and p.user_id = ${input.userId}
       and c.challenge_date = current_date
+      and p.status = 'staked'
   `;
 }
 
@@ -145,45 +162,76 @@ export async function logActivity(input: {
   `;
 }
 
+// ── [수정] 기상 시간 윈도우 + sleep_lock 상태 검증 ───────────────────────────
 export async function passVerification(input: {
   userId: string;
   challengeId: string;
-  reactionMs: number;
 }) {
   const sql = getSql();
-  let wakeTime = "05:30";
+
+  const [participation] = await sql<{
+    wake_time: string;
+    random_check_in_from: string;
+    random_check_in_to: string;
+    status: string;
+    sleep_locked_at: string | null;
+  }[]>`
+    select wake_time, random_check_in_from, random_check_in_to, status, sleep_locked_at
+    from challenge_participation
+    where challenge_id = ${input.challengeId}
+      and user_id = ${input.userId}
+    limit 1
+  `;
+
+  if (!participation) {
+    throw new Error("참여 정보를 찾을 수 없습니다.");
+  }
+
+  // ── [수정] sleep_locked 상태 검사 ─────────────────────────────────────
+  if (participation.status !== "sleep_locked") {
+    throw new Error("Sleep Lock을 먼저 활성화해야 기상 인증이 가능합니다.");
+  }
+
+  // ── [수정] 서버 시간으로 기상 윈도우 검증 ─────────────────────────────
+  const now = new Date();
+  const fromDate = timeStringToTodayDate(participation.random_check_in_from);
+  const toDate = timeStringToTodayDate(participation.random_check_in_to);
+
+  if (now < fromDate || now > toDate) {
+    const from = participation.random_check_in_from;
+    const to = participation.random_check_in_to;
+    throw new Error(
+      `기상 인증 가능 시간이 아닙니다. 인증 가능 시간: ${from} ~ ${to}`
+    );
+  }
+
+  // ── [수정] reactionMs를 서버에서 직접 계산 ────────────────────────────
+  const sleepLockedAt = participation.sleep_locked_at
+    ? new Date(participation.sleep_locked_at)
+    : now;
+  const reactionMs = Math.max(0, now.getTime() - sleepLockedAt.getTime());
 
   await sql.begin(async (transaction) => {
-    const [participation] = await transaction<{
-      wake_time: string;
-    }[]>`
-      select wake_time
-      from challenge_participation
-      where challenge_id = ${input.challengeId}
-        and user_id = ${input.userId}
-      limit 1
-    `;
-    wakeTime = participation?.wake_time ?? wakeTime;
-
     await transaction`
       update challenge_participation
       set status = 'passed',
           verified_at = now(),
-          reaction_ms = ${input.reactionMs}
+          reaction_ms = ${reactionMs}
       where challenge_id = ${input.challengeId}
         and user_id = ${input.userId}
     `;
 
+    // ── [수정] success_streak만 증가 (net_profit은 정산 시 반영) ──────────
     await transaction`
       update app_user
-      set success_streak = success_streak + 1,
-          net_profit_ton = net_profit_ton
+      set success_streak = success_streak + 1
       where id = ${input.userId}
     `;
   });
 
   return {
-    wakeTime,
+    wakeTime: participation.wake_time,
+    reactionMs,
     weeklyBonusTon: 0
   };
 }
@@ -245,15 +293,19 @@ export async function settleTodayChallenge(challengeDate?: string) {
 
     for (const winner of winners) {
       const groupBonus = calculateWeeklyPerfectGroupBonus(winner.group_member_count);
+      const totalReward = payout.perWinnerTon + groupBonus;
+
       await transaction`
         update challenge_participation
         set status = 'settled',
-            settled_reward_ton = ${payout.perWinnerTon + groupBonus}
+            settled_reward_ton = ${totalReward}
         where id = ${winner.participation_id}
       `;
+
+      // ── [수정] net_profit_ton을 정산 시점에 실제 증가 ──────────────────
       await transaction`
         update app_user
-        set net_profit_ton = net_profit_ton + ${payout.perWinnerTon + groupBonus}
+        set net_profit_ton = net_profit_ton + ${totalReward}
         where id = ${winner.user_id}
       `;
     }
@@ -268,6 +320,7 @@ export async function settleTodayChallenge(challengeDate?: string) {
   };
 }
 
+// ── [수정] leaderboard: success_count를 streak이 아닌 실제 passed 건수로 ──
 export async function getLeaderboard() {
   const sql = getSql();
   const rows = await sql<{
@@ -277,13 +330,14 @@ export async function getLeaderboard() {
     best_wake_time: string;
     net_profit_ton: number;
   }[]>`
-    select u.id, u.display_name, u.success_streak as success_count,
+    select u.id, u.display_name,
+           count(p.id) filter (where p.status in ('passed', 'settled'))::int as success_count,
            coalesce(min(p.wake_time), '05:30') as best_wake_time,
            u.net_profit_ton
     from app_user u
     left join challenge_participation p on p.user_id = u.id
     group by u.id
-    order by u.net_profit_ton desc, u.success_streak desc
+    order by u.net_profit_ton desc, success_count desc
     limit 10
   `;
 
@@ -292,7 +346,7 @@ export async function getLeaderboard() {
       ({
         userId: row.id,
         displayName: row.display_name,
-        successCount: row.success_count,
+        successCount: Number(row.success_count),
         bestWakeTime: row.best_wake_time,
         netProfitTon: Number(row.net_profit_ton)
       }) satisfies LeaderboardEntry
