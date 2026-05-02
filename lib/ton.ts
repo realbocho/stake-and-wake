@@ -20,7 +20,6 @@ export function buildStakePayload(input: {
 }
 
 // ─── On-chain transaction verification ───────────────────────────────────────
-// Instead of trusting the BOC directly, we verify the actual deposit via TONCenter API.
 const TONCENTER_BASE =
   process.env.TON_NETWORK === "mainnet"
     ? "https://toncenter.com/api/v2"
@@ -74,6 +73,22 @@ export async function verifyOnChainDeposit(input: {
   }
 
   const expectedComment = `stakewake:${input.challengeId}:${input.telegramId}:${input.wakeTime}`;
+
+  // ── Debug logs ──────────────────────────────────────────────────────────────
+  console.log("[TON] TONCENTER_BASE:", TONCENTER_BASE);
+  console.log("[TON] vault address:", toVault);
+  console.log("[TON] from wallet:", fromWallet);
+  console.log("[TON] expected nano:", expectedNano.toString());
+  console.log("[TON] expected comment:", expectedComment);
+  console.log("[TON] tx count:", data.result.length);
+  for (const tx of data.result) {
+    const msg = tx.in_msg;
+    console.log("[TON] tx source:", msg?.source);
+    console.log("[TON] tx dest:", msg?.destination);
+    console.log("[TON] tx value:", msg?.value);
+    console.log("[TON] tx comment:", msg?.msg_data?.text);
+  }
+  // ───────────────────────────────────────────────────────────────────────────
 
   for (const tx of data.result) {
     const msg = tx.in_msg;
