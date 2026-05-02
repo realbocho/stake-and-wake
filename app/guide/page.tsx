@@ -132,20 +132,6 @@ export default function GuidePage() {
               winners&apos; pool.
             </p>
           </div>
-
-          <div className="panel stack">
-            <div className="label">Groups &amp; bonuses</div>
-            <p className="muted">
-              Join a group with an invite code under <strong>Join a Group</strong>. Groups
-              of 10 or more members who all succeed for a full week unlock an
-              additional <strong>5 TON bonus</strong> per member on top of the regular pool
-              reward.
-            </p>
-            <p className="muted">
-              Share your personal invite code from the <strong>Invite Friends</strong> panel.
-              Every friend who joins adds referral credits to your balance.
-            </p>
-          </div>
         </div>
       </section>
     </main>
