@@ -21,7 +21,7 @@ export async function createPaymentIntent(input: {
   return id;
 }
 
-// ── [수정] intentId + userId로 단건 조회 ──────────────────────────────────
+// ── [Fix] Fetch a single record by intentId + userId ──────────────────────────
 export async function getPaymentIntent(intentId: string, userId: string) {
   const sql = getSql();
   const [row] = await sql<{
@@ -39,7 +39,7 @@ export async function getPaymentIntent(intentId: string, userId: string) {
   `;
   if (!row) return null;
   return {
-    id: row.id,
+    id: row.id,           // ✅ 수정됨
     challengeId: row.challenge_id,
     amountTon: Number(row.amount_ton),
     walletAddress: row.wallet_address,
@@ -47,7 +47,7 @@ export async function getPaymentIntent(intentId: string, userId: string) {
   };
 }
 
-// ── [수정] txHash 컬럼에 검증된 해시 저장 ─────────────────────────────────
+// ── [Fix] Save verified hash to txHash column ─────────────────────────────────
 export async function confirmPaymentIntent(input: {
   intentId: string;
   userId: string;
