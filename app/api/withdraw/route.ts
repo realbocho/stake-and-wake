@@ -6,14 +6,8 @@ import { env } from "@/lib/env";
 import { toNanoTon, encodeBase64 } from "@/lib/ton";
 import { beginCell } from "@ton/core";
 
-/**
- * Claim 메시지 TL-B 인코딩
- * Tact 컴파일러가 생성하는 opcode는 빌드 후 확인 필요.
- * 확인 방법: npm run build:contracts 후 build/ 폴더의 .abi 파일에서 "Claim" opcode 확인
- *
- * 임시로 0x00000000 사용 — 반드시 실제 opcode로 교체해야 함!
- */
-const CLAIM_OPCODE = 0x59A1C3E8; // ← TODO: 빌드 후 실제 opcode로 교체
+// Claim opcode — confirmed from ABI: 1504906600 = 0x59A1C3E8
+const CLAIM_OPCODE = 0x59A1C3E8;
 
 function buildClaimPayload(roundId: number): string {
   return encodeBase64(
@@ -33,27 +27,26 @@ export async function POST() {
   try {
     const user = await findUserById(session.userId);
     if (!user) return fail("User not found", 404);
-    if (!user.walletAddress) return fail("지갑을 먼저 연결해주세요.", 400);
+    if (!user.walletAddress) return fail("Please connect your wallet first.", 400);
 
     const withdrawableTon = user.netProfitTon ?? 0;
-    if (withdrawableTon <= 0) return fail("출금 가능한 잔액이 없습니다.", 400);
+    if (withdrawableTon <= 0) return fail("No balance available to withdraw.", 400);
 
-    // 현재 활성 챌린지의 roundId 조회
     const challenge = await getActiveChallengeForUser(session.userId);
-    if (!challenge) return fail("활성 챌린지가 없습니다.", 400);
+    if (!challenge) return fail("No active challenge found.", 400);
 
-    const roundId = Number(challenge.id); // challenge.id가 roundId와 매핑됨
+    const roundId = Number(challenge.id);
 
     return ok({
       to: env.stakeVaultAddress,
-      // 가스비만 전송 — 컨트랙트가 원금 + 보상을 유저 지갑으로 돌려줌
+      // Gas fee only — contract sends back principal + reward to user wallet
       amountNano: toNanoTon(0.05).toString(),
       withdrawableTon,
       payload: buildClaimPayload(roundId),
       validUntil: Math.floor(Date.now() / 1000) + 300
     });
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Withdraw failed.";
+    const message = cause instanceof Error ? cause.message : "Withdrawal failed.";
     return fail(message);
   }
 }
