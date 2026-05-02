@@ -221,17 +221,16 @@ export function DashboardShell() {
     });
   };
 
-  // ── 출금 ──────────────────────────────────────────────────────────────────
   const withdraw = () => {
     startTransition(() => {
       if (!walletAddress) {
-        setError("출금 전 지갑을 연결해주세요.");
+        setError("Please connect your wallet before withdrawing.");
         return Promise.resolve();
       }
 
       return getJson<WithdrawIntent>("/api/withdraw", { method: "POST" })
         .then(async (intent) => {
-          setStatusMessage(`${intent.withdrawableTon} TON 출금 중... 지갑에서 승인해주세요.`);
+          setStatusMessage(`Withdrawing ${intent.withdrawableTon} TON... Please approve in your wallet.`);
           await tonConnectUI.sendTransaction({
             validUntil: intent.validUntil,
             messages: [
@@ -242,11 +241,11 @@ export function DashboardShell() {
               }
             ]
           });
-          setStatusMessage("출금 완료! 지갑을 확인해주세요.");
+          setStatusMessage("Withdrawal complete! Check your wallet.");
           await refresh();
         })
         .catch((cause: unknown) => {
-          const message = cause instanceof Error ? cause.message : "출금 실패";
+          const message = cause instanceof Error ? cause.message : "Withdrawal failed";
           setError(message);
         });
     });
@@ -298,18 +297,6 @@ export function DashboardShell() {
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Wallet bind failed";
-          setError(message);
-        });
-    });
-  };
-
-  const claimReferral = () => {
-    startTransition(() => {
-      getJson("/api/referrals/claim", { method: "POST" })
-        .then(refresh)
-        .catch((cause: unknown) => {
-          const message =
-            cause instanceof Error ? cause.message : "Referral claim failed";
           setError(message);
         });
     });
@@ -479,8 +466,6 @@ export function DashboardShell() {
         </div>
 
         <div className="stack">
-
-
           <div className="panel stack">
             <div className="label">Join a Group</div>
             <input
