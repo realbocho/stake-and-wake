@@ -31,7 +31,12 @@ type TonTransaction = {
     source: string;
     destination: string;
     value: string;
-    msg_data?: { text?: string };
+    msg_data?: {
+      type?: string;
+      text?: string;
+      body?: string;
+    };
+    message?: string;
   };
 };
 
@@ -83,10 +88,11 @@ export async function verifyOnChainDeposit(input: {
   console.log("[TON] tx count:", data.result.length);
   for (const tx of data.result) {
     const msg = tx.in_msg;
+    console.log("[TON] --- tx ---");
     console.log("[TON] tx source:", msg?.source);
-    console.log("[TON] tx dest:", msg?.destination);
     console.log("[TON] tx value:", msg?.value);
-    console.log("[TON] tx comment:", msg?.msg_data?.text);
+    console.log("[TON] tx msg_data:", JSON.stringify(msg?.msg_data));
+    console.log("[TON] tx message:", msg?.message);
   }
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -97,7 +103,10 @@ export async function verifyOnChainDeposit(input: {
     const senderMatch = msg.source?.toLowerCase() === fromWallet.toLowerCase();
     const destMatch = msg.destination?.toLowerCase() === toVault.toLowerCase();
     const valueMatch = BigInt(msg.value ?? "0") >= expectedNano;
-    const commentMatch = msg.msg_data?.text === expectedComment;
+
+    // Try both msg_data.text and message field
+    const comment = msg.msg_data?.text ?? msg.message ?? "";
+    const commentMatch = comment === expectedComment;
 
     if (senderMatch && destMatch && valueMatch && commentMatch) {
       return tx.transaction_id.hash;
