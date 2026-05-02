@@ -533,6 +533,22 @@ export function DashboardShell() {
           </div>
         </div>
       </section>
+
+      <section className="content-grid" style={{ marginTop: "1.5rem" }}>
+        <div className="panel stack" style={{ gridColumn: "1 / -1" }}>
+          <div className="row space-between">
+            <div className="label">Guide</div>
+            <a className="button ghost" href="/guide" target="_blank" rel="noreferrer">
+              Open Full Guide
+            </a>
+          </div>
+          <iframe
+            title="Stake & Wake Guide"
+            src="/guide"
+            style={{ width: "100%", minHeight: "560px", border: "none", borderRadius: "12px" }}
+          />
+        </div>
+      </section>
     </main>
   );
 }
