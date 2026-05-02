@@ -372,8 +372,7 @@ export function DashboardShell() {
             </div>
             <div className="big-clock mono">{data ? data.challenge.wakeTime : "--:--"}</div>
             <p className="muted">
-              Daily fee {data ? formatTon(data.dailyFeeTon) : "--"} · Group perfect
-              week bonus {data ? formatTon(data.weeklyPerfectGroupBonusTon) : "--"}
+              Daily fee {data ? formatTon(data.dailyFeeTon) : "--"}
             </p>
             <div className="separator" />
             <TonConnectButton />
@@ -403,13 +402,6 @@ export function DashboardShell() {
             <div className="label">Active Pool</div>
             <div className="value mono">{data ? formatTon(data.challenge.poolTon) : "--"}</div>
             <div className="muted">Failed stakes minus platform fee split among winners.</div>
-          </div>
-          <div className="panel kpi">
-            <div className="label">Referral Credits</div>
-            <div className="value mono">{data ? formatTon(data.referralBalanceTon) : "--"}</div>
-            <button className="button ghost" onClick={claimReferral} disabled={pending || !authenticated}>
-              Claim Credits
-            </button>
           </div>
         </div>
       </section>
@@ -487,19 +479,7 @@ export function DashboardShell() {
         </div>
 
         <div className="stack">
-          <div className="panel stack">
-            <div className="label">Invite Friends</div>
-            <input
-              className="input mono"
-              placeholder="Optional referral code"
-              value={inviteCode}
-              onChange={(event) => setInviteCode(event.target.value)}
-            />
-            <p className="muted">
-              Every valid invite adds trial credits. Groups of 10+ members who
-              all succeed for seven days unlock an extra 5 TON per member.
-            </p>
-          </div>
+
 
           <div className="panel stack">
             <div className="label">Join a Group</div>
