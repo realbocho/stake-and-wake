@@ -14,14 +14,14 @@ export async function POST(request: Request) {
   try {
     const body = paymentConfirmSchema.parse(await request.json());
 
-    // ── [수정] 1. payment_intent 조회해서 walletAddress 확인 ──────────────
+    // ── [Fix] 1. Look up payment_intent and verify walletAddress ──────────────
     const intent = await getPaymentIntent(body.intentId, session.userId);
-    if (!intent) return fail("결제 정보를 찾을 수 없습니다.", 404);
-    if (intent.status !== "prepared") return fail("이미 처리된 결제입니다.", 409);
+    if (!intent) return fail("Payment record not found.", 404);
+    if (intent.status !== "prepared") return fail("This payment has already been processed.", 409);
 
-    // ── [수정] 2. TON 블록체인 실제 입금 검증 ────────────────────────────
+    // ── [Fix] 2. Verify actual on-chain TON deposit ────────────────────────────
     const user = await findUserById(session.userId);
-    if (!user?.walletAddress) return fail("지갑이 연결되어 있지 않습니다.", 400);
+    if (!user?.walletAddress) return fail("Wallet is not connected.", 400);
 
     const txHash = await verifyOnChainDeposit({
       fromWallet: user.walletAddress,
@@ -34,12 +34,12 @@ export async function POST(request: Request) {
 
     if (!txHash) {
       return fail(
-        "블록체인에서 입금을 확인할 수 없습니다. 트랜잭션이 반영되는 데 최대 30초가 소요됩니다. 잠시 후 다시 시도해주세요.",
+        "Unable to confirm deposit on the blockchain. Transactions may take up to 30 seconds to reflect. Please try again shortly.",
         402
       );
     }
 
-    // ── [수정] 3. 검증된 tx hash를 저장 후 스테이킹 처리 ─────────────────
+    // ── [Fix] 3. Save verified tx hash and process staking ─────────────────
     await confirmPaymentIntent({
       intentId: body.intentId,
       userId: session.userId,
