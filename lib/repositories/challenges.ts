@@ -1,10 +1,7 @@
 import { randomUUID } from "crypto";
 import { getSql } from "@/lib/db";
 import { env } from "@/lib/env";
-import {
-  calculatePoolPayout,
-  calculateWeeklyPerfectGroupBonus
-} from "@/lib/rewards";
+import { calculatePoolPayout } from "@/lib/rewards";
 import type { ChallengeView, LeaderboardEntry } from "@/lib/types";
 
 type ChallengeRow = {
@@ -29,7 +26,6 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
   };
 }
 
-// ── [수정] HH:MM 문자열 → 오늘 날짜 기준 Date 객체 ─────────────────────────
 function timeStringToTodayDate(hhmm: string): Date {
   const [h, m] = hhmm.split(":").map(Number);
   const d = new Date();
@@ -84,7 +80,6 @@ export async function getOrCreateTonightChallenge() {
   } satisfies ChallengeView;
 }
 
-// ── [수정] durationDays 파라미터 추가 + DB 저장 ───────────────────────────
 export async function stakeForTonight(input: {
   userId: string;
   stakeAmountTon: number;
@@ -162,7 +157,6 @@ export async function logActivity(input: {
   `;
 }
 
-// ── [수정] 기상 시간 윈도우 + sleep_lock 상태 검증 ───────────────────────────
 export async function passVerification(input: {
   userId: string;
   challengeId: string;
@@ -187,12 +181,10 @@ export async function passVerification(input: {
     throw new Error("참여 정보를 찾을 수 없습니다.");
   }
 
-  // ── [수정] sleep_locked 상태 검사 ─────────────────────────────────────
   if (participation.status !== "sleep_locked") {
     throw new Error("Sleep Lock을 먼저 활성화해야 기상 인증이 가능합니다.");
   }
 
-  // ── [수정] 서버 시간으로 기상 윈도우 검증 ─────────────────────────────
   const now = new Date();
   const fromDate = timeStringToTodayDate(participation.random_check_in_from);
   const toDate = timeStringToTodayDate(participation.random_check_in_to);
@@ -205,7 +197,6 @@ export async function passVerification(input: {
     );
   }
 
-  // ── [수정] reactionMs를 서버에서 직접 계산 ────────────────────────────
   const sleepLockedAt = participation.sleep_locked_at
     ? new Date(participation.sleep_locked_at)
     : now;
@@ -221,7 +212,6 @@ export async function passVerification(input: {
         and user_id = ${input.userId}
     `;
 
-    // ── [수정] success_streak만 증가 (net_profit은 정산 시 반영) ──────────
     await transaction`
       update app_user
       set success_streak = success_streak + 1
@@ -257,11 +247,9 @@ export async function settleTodayChallenge(challengeDate?: string) {
     user_id: string;
     status: string;
     stake_amount_ton: number;
-    group_member_count: number;
   }[]>`
-    select p.id as participation_id, p.user_id, p.status, p.stake_amount_ton, u.group_member_count
+    select p.id as participation_id, p.user_id, p.status, p.stake_amount_ton
     from challenge_participation p
-    join app_user u on u.id = p.user_id
     where p.challenge_id = ${challenge.id}
   `;
 
@@ -292,20 +280,16 @@ export async function settleTodayChallenge(challengeDate?: string) {
     }
 
     for (const winner of winners) {
-      const groupBonus = calculateWeeklyPerfectGroupBonus(winner.group_member_count);
-      const totalReward = payout.perWinnerTon + groupBonus;
-
       await transaction`
         update challenge_participation
         set status = 'settled',
-            settled_reward_ton = ${totalReward}
+            settled_reward_ton = ${payout.perWinnerTon}
         where id = ${winner.participation_id}
       `;
 
-      // ── [수정] net_profit_ton을 정산 시점에 실제 증가 ──────────────────
       await transaction`
         update app_user
-        set net_profit_ton = net_profit_ton + ${totalReward}
+        set net_profit_ton = net_profit_ton + ${payout.perWinnerTon}
         where id = ${winner.user_id}
       `;
     }
@@ -320,7 +304,6 @@ export async function settleTodayChallenge(challengeDate?: string) {
   };
 }
 
-// ── [수정] leaderboard: success_count를 streak이 아닌 실제 passed 건수로 ──
 export async function getLeaderboard() {
   const sql = getSql();
   const rows = await sql<{
