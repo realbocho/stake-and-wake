@@ -171,6 +171,22 @@ export function DashboardShell() {
     return () => window.clearInterval(interval);
   }, [authenticated]);
 
+  // Auto-bind wallet when connected
+  useEffect(() => {
+    if (!authenticated || !walletAddress) return;
+    if (data?.user?.walletAddress === walletAddress) return;
+
+    getJson<WalletBindingPayload>("/api/wallet/bind", {
+      method: "POST",
+      body: JSON.stringify({ walletAddress })
+    })
+      .then(refresh)
+      .catch((cause: unknown) => {
+        const message = cause instanceof Error ? cause.message : "Wallet bind failed";
+        setError(message);
+      });
+  }, [walletAddress, authenticated, data?.user?.walletAddress, refresh]);
+
   const submitStake = () => {
     startTransition(() => {
       if (!walletAddress) {
