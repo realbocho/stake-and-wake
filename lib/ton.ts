@@ -1,4 +1,4 @@
-import { beginCell } from "@ton/core";
+import { beginCell, Address } from "@ton/core";
 
 export function toNanoTon(valueTon: number) {
   return BigInt(Math.round(valueTon * 1_000_000_000));
@@ -17,6 +17,15 @@ export function buildStakePayload(input: {
   return encodeBase64(
     beginCell().storeUint(0, 32).storeStringTail(comment).endCell().toBoc()
   );
+}
+
+// Normalize TON address to raw hex format for comparison (strips 0Q/EQ/UQ prefix differences)
+function normalizeAddress(addr: string): string {
+  try {
+    return Address.parse(addr).toRawString().toLowerCase();
+  } catch {
+    return addr.toLowerCase();
+  }
 }
 
 // ─── On-chain transaction verification ───────────────────────────────────────
@@ -86,22 +95,21 @@ export async function verifyOnChainDeposit(input: {
   }
 
   const expectedComment = `stakewake:${input.challengeId}:${input.telegramId}:${input.wakeTime}`;
+  const normalizedFromWallet = normalizeAddress(fromWallet);
+  const normalizedToVault = normalizeAddress(toVault);
 
   for (const tx of data.result) {
     const msg = tx.in_msg;
     if (!msg) continue;
 
-    const senderMatch = msg.source?.toLowerCase() === fromWallet.toLowerCase();
-    const destMatch = msg.destination?.toLowerCase() === toVault.toLowerCase();
+    const senderMatch = normalizeAddress(msg.source ?? "") === normalizedFromWallet;
+    const destMatch = normalizeAddress(msg.destination ?? "") === normalizedToVault;
     const valueMatch = BigInt(msg.value ?? "0") >= expectedNano;
 
-    // msg_data.text is Base64-encoded — decode before comparing
     const rawComment = msg.msg_data?.text ?? msg.message ?? "";
     const decodedComment = decodeComment(rawComment);
     const commentMatch = decodedComment === expectedComment;
 
-    console.log("[TON] decoded comment:", decodedComment);
-    console.log("[TON] expected comment:", expectedComment);
     console.log("[TON] match:", senderMatch, destMatch, valueMatch, commentMatch);
 
     if (senderMatch && destMatch && valueMatch && commentMatch) {
