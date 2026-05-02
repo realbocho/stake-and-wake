@@ -19,9 +19,8 @@ export function buildStakePayload(input: {
   );
 }
 
-// ─── TON 온체인 트랜잭션 검증 ────────────────────────────────────────────────
-// BOC를 그대로 신뢰하는 대신, TONCenter API로 실제 입금 여부를 확인합니다.
-
+// ─── On-chain transaction verification ───────────────────────────────────────
+// Instead of trusting the BOC directly, we verify the actual deposit via TONCenter API.
 const TONCENTER_BASE =
   process.env.TON_NETWORK === "mainnet"
     ? "https://toncenter.com/api/v2"
@@ -43,8 +42,8 @@ type TonGetTransactionsResponse = {
 };
 
 /**
- * 지갑 → vault로 기대 금액 이상의 트랜잭션이 실제 발생했는지 확인합니다.
- * @returns 검증된 트랜잭션 해시, 없으면 null
+ * Verifies that a transaction from wallet → vault for at least the expected amount has occurred.
+ * @returns The verified transaction hash, or null if not found.
  */
 export async function verifyOnChainDeposit(input: {
   fromWallet: string;
@@ -67,11 +66,11 @@ export async function verifyOnChainDeposit(input: {
     const res = await fetch(url.toString(), { cache: "no-store" });
     data = (await res.json()) as TonGetTransactionsResponse;
   } catch {
-    throw new Error("TON 네트워크에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    throw new Error("Unable to connect to the TON network. Please try again shortly.");
   }
 
   if (!data.ok) {
-    throw new Error("TON API 응답 오류: 트랜잭션을 확인할 수 없습니다.");
+    throw new Error("TON API error: Unable to retrieve transactions.");
   }
 
   const expectedComment = `stakewake:${input.challengeId}:${input.telegramId}:${input.wakeTime}`;
