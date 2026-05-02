@@ -178,11 +178,11 @@ export async function passVerification(input: {
   `;
 
   if (!participation) {
-    throw new Error("참여 정보를 찾을 수 없습니다.");
+    throw new Error("Participation record not found.");
   }
 
   if (participation.status !== "sleep_locked") {
-    throw new Error("Sleep Lock을 먼저 활성화해야 기상 인증이 가능합니다.");
+    throw new Error("You must enable Sleep Lock before completing a wake check-in.");
   }
 
   const now = new Date();
@@ -192,9 +192,7 @@ export async function passVerification(input: {
   if (now < fromDate || now > toDate) {
     const from = participation.random_check_in_from;
     const to = participation.random_check_in_to;
-    throw new Error(
-      `기상 인증 가능 시간이 아닙니다. 인증 가능 시간: ${from} ~ ${to}`
-    );
+    throw new Error(`Wake check-in is only available between ${from} and ${to}.`);
   }
 
   const sleepLockedAt = participation.sleep_locked_at
