@@ -45,6 +45,14 @@ type TonGetTransactionsResponse = {
   result: TonTransaction[];
 };
 
+function decodeComment(raw: string): string {
+  try {
+    return Buffer.from(raw, "base64").toString("utf-8");
+  } catch {
+    return raw;
+  }
+}
+
 /**
  * Verifies that a transaction from wallet → vault for at least the expected amount has occurred.
  * @returns The verified transaction hash, or null if not found.
@@ -79,23 +87,6 @@ export async function verifyOnChainDeposit(input: {
 
   const expectedComment = `stakewake:${input.challengeId}:${input.telegramId}:${input.wakeTime}`;
 
-  // ── Debug logs ──────────────────────────────────────────────────────────────
-  console.log("[TON] TONCENTER_BASE:", TONCENTER_BASE);
-  console.log("[TON] vault address:", toVault);
-  console.log("[TON] from wallet:", fromWallet);
-  console.log("[TON] expected nano:", expectedNano.toString());
-  console.log("[TON] expected comment:", expectedComment);
-  console.log("[TON] tx count:", data.result.length);
-  for (const tx of data.result) {
-    const msg = tx.in_msg;
-    console.log("[TON] --- tx ---");
-    console.log("[TON] tx source:", msg?.source);
-    console.log("[TON] tx value:", msg?.value);
-    console.log("[TON] tx msg_data:", JSON.stringify(msg?.msg_data));
-    console.log("[TON] tx message:", msg?.message);
-  }
-  // ───────────────────────────────────────────────────────────────────────────
-
   for (const tx of data.result) {
     const msg = tx.in_msg;
     if (!msg) continue;
@@ -104,9 +95,14 @@ export async function verifyOnChainDeposit(input: {
     const destMatch = msg.destination?.toLowerCase() === toVault.toLowerCase();
     const valueMatch = BigInt(msg.value ?? "0") >= expectedNano;
 
-    // Try both msg_data.text and message field
-    const comment = msg.msg_data?.text ?? msg.message ?? "";
-    const commentMatch = comment === expectedComment;
+    // msg_data.text is Base64-encoded — decode before comparing
+    const rawComment = msg.msg_data?.text ?? msg.message ?? "";
+    const decodedComment = decodeComment(rawComment);
+    const commentMatch = decodedComment === expectedComment;
+
+    console.log("[TON] decoded comment:", decodedComment);
+    console.log("[TON] expected comment:", expectedComment);
+    console.log("[TON] match:", senderMatch, destMatch, valueMatch, commentMatch);
 
     if (senderMatch && destMatch && valueMatch && commentMatch) {
       return tx.transaction_id.hash;
