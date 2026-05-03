@@ -91,7 +91,10 @@ export default function GuidePage() {
             <div className="label">Step 4 — Claim your reward</div>
             <p className="muted">
               At the end of each day, the pool from failed participants is split
-              among everyone who successfully checked in. Your cumulative profit
+              among everyone who successfully checked in. <strong>Your share of the pool is proportional to your stake amount.</strong>
+            </p>
+            <p className="muted">
+              Higher stakes earn a larger percentage of the failed pool. Your cumulative profit
               is shown under <strong>Net Profit</strong>.
             </p>
             <p className="muted">
@@ -104,17 +107,17 @@ export default function GuidePage() {
           <div className="panel stack">
             <div className="label">FAQ</div>
 
-            <div className="label" style={{ marginTop: 8 }}>Sleep Lock does nothing when I tap it</div>
+            <div className="label" style={{ marginTop: 8 }}>How are rewards calculated?</div>
+            <p className="muted">
+              Rewards are distributed proportionally: <br/>
+              <code style={{ color: "var(--accent)" }}>Reward = Total Pool × (Your Stake / Total Winners' Stake)</code><br/>
+              This means if you stake more, you take a larger share of the penalty pool from those who failed.
+            </p>
+
+            <div className="label" style={{ marginTop: 16 }}>Sleep Lock does nothing when I tap it</div>
             <p className="muted">
               There&apos;s no animation. Check the badge in the wake window — if it
               says <strong>sleep_locked</strong>, it worked.
-            </p>
-
-            <div className="label" style={{ marginTop: 16 }}>Sleep Lock isn&apos;t responding at all</div>
-            <p className="muted">
-              You need to complete a stake first. Tap <strong>Pay and Start
-              Challenge</strong> to join a challenge before Sleep Lock becomes
-              available.
             </p>
 
             <div className="label" style={{ marginTop: 16 }}>Do I need to open the app inside Telegram?</div>
