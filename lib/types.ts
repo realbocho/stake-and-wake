@@ -10,6 +10,7 @@ export type SessionUser = {
   netProfitTon: number;
   nftTier: NftTier;
   groupMemberCount: number;
+  timezone: string | null; // e.g. "Asia/Seoul", "America/New_York"
 };
 
 export type ChallengeStatus =
