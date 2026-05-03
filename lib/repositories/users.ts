@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
 import { getSql } from "@/lib/db";
-import { env } from "@/lib/env";
 import { toTier } from "@/lib/utils";
 import type { SessionUser } from "@/lib/types";
 
@@ -13,6 +12,7 @@ type UserRow = {
   success_streak: number;
   net_profit_ton: number;
   group_member_count: number;
+  timezone: string | null;
 };
 
 function mapUser(row: UserRow): SessionUser {
@@ -25,14 +25,16 @@ function mapUser(row: UserRow): SessionUser {
     successStreak: row.success_streak,
     netProfitTon: Number(row.net_profit_ton),
     nftTier: toTier(row.success_streak),
-    groupMemberCount: row.group_member_count
+    groupMemberCount: row.group_member_count,
+    timezone: row.timezone
   };
 }
 
 export async function findUserById(userId: string) {
   const sql = getSql();
   const [row] = await sql<UserRow[]>`
-    select id, telegram_id, display_name, avatar_url, wallet_address, success_streak, net_profit_ton, group_member_count
+    select id, telegram_id, display_name, avatar_url, wallet_address,
+           success_streak, net_profit_ton, group_member_count, timezone
     from app_user
     where id = ${userId}
     limit 1
@@ -46,16 +48,19 @@ export async function upsertTelegramUser(input: {
   avatarUrl?: string;
   deviceIdHash: string;
   inviteCode?: string;
+  timezone?: string;
 }) {
   const sql = getSql();
   const [existing] = await sql<UserRow[]>`
-    select id, telegram_id, display_name, avatar_url, wallet_address, success_streak, net_profit_ton, group_member_count
+    select id, telegram_id, display_name, avatar_url, wallet_address,
+           success_streak, net_profit_ton, group_member_count, timezone
     from app_user
     where telegram_id = ${input.telegramId}
     limit 1
   `;
 
   if (existing) {
+    // 기존 유저 — timezone은 이미 설정된 경우 변경하지 않음
     await sql`
       update app_user
       set display_name = ${input.displayName},
@@ -67,30 +72,21 @@ export async function upsertTelegramUser(input: {
     return mapUser(existing);
   }
 
+  // 신규 유저 — timezone 최초 저장
   const id = randomUUID();
-  // 자신의 초대 코드는 telegram ID 기반으로 생성
   const myInviteCode = `SW-${input.telegramId}`;
+  const timezone = input.timezone ?? null;
 
-  await sql.begin(async (transaction) => {
-    await transaction`
-      insert into app_user (
-        id, telegram_id, display_name, avatar_url, invite_code, referral_credit_ton,
-        last_device_hash, success_streak, net_profit_ton, group_member_count
-      ) values (
-        ${id}, ${input.telegramId}, ${input.displayName}, ${input.avatarUrl ?? null},
-        ${myInviteCode}, 0, ${input.deviceIdHash}, 0, 0, 1
-      )
-    `;
-
-    // ── [수정] 초대 코드로 초대한 사람의 크레딧 적립 ─────────────────────
-    if (input.inviteCode && input.inviteCode !== myInviteCode) {
-      await transaction`
-        update app_user
-        set referral_credit_ton = referral_credit_ton + ${env.referralBonusTon}
-        where invite_code = ${input.inviteCode}
-      `;
-    }
-  });
+  await sql`
+    insert into app_user (
+      id, telegram_id, display_name, avatar_url, invite_code,
+      referral_credit_ton, last_device_hash, success_streak,
+      net_profit_ton, group_member_count, timezone
+    ) values (
+      ${id}, ${input.telegramId}, ${input.displayName}, ${input.avatarUrl ?? null},
+      ${myInviteCode}, 0, ${input.deviceIdHash}, 0, 0, 1, ${timezone}
+    )
+  `;
 
   return {
     id,
@@ -101,7 +97,8 @@ export async function upsertTelegramUser(input: {
     successStreak: 0,
     netProfitTon: 0,
     nftTier: "Bronze",
-    groupMemberCount: 1
+    groupMemberCount: 1,
+    timezone
   } satisfies SessionUser;
 }
 
