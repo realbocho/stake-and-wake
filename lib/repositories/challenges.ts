@@ -26,11 +26,51 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
   };
 }
 
-function timeStringToTodayDate(hhmm: string): Date {
+/**
+ * 특정 타임존에서 현재 로컬 시각이 HH:MM 형식으로 몇 시인지 반환
+ * 예: getLocalHour("Asia/Seoul") → 7 (오전 7시)
+ */
+function getLocalHour(timezone: string): number {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      hour12: false
+    });
+    return Number(formatter.format(now));
+  } catch {
+    // 잘못된 타임존이면 UTC 사용
+    return new Date().getUTCHours();
+  }
+}
+
+/**
+ * 특정 타임존에서 오늘 날짜를 YYYY-MM-DD 형식으로 반환
+ */
+function getLocalDate(timezone: string): string {
+  try {
+    const now = new Date();
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * 타임존 기준 HH:MM 시간 문자열을 오늘 날짜의 Date 객체로 변환
+ */
+function timeStringToDateInTimezone(hhmm: string, timezone: string): Date {
+  const localDate = getLocalDate(timezone);
   const [h, m] = hhmm.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d;
+  // UTC 기준으로 변환
+  const localDateObj = new Date(`${localDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+  const tzOffset = new Date().getTime() - new Date(new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+  }).format(new Date())).getTime();
+  return new Date(localDateObj.getTime() + tzOffset);
 }
 
 export async function getActiveChallengeForUser(userId: string) {
@@ -114,7 +154,9 @@ export async function stakeForTonight(input: {
       update challenge
       set status = 'active',
           pool_ton = (
-        select coalesce(sum(stake_amount_ton), 0) from challenge_participation where challenge_id = ${challenge.id}
+        select coalesce(sum(stake_amount_ton), 0)
+        from challenge_participation
+        where challenge_id = ${challenge.id}
       )
       where id = ${challenge.id}
     `;
@@ -169,11 +211,14 @@ export async function passVerification(input: {
     random_check_in_to: string;
     status: string;
     sleep_locked_at: string | null;
+    user_timezone: string | null;
   }[]>`
-    select wake_time, random_check_in_from, random_check_in_to, status, sleep_locked_at
-    from challenge_participation
-    where challenge_id = ${input.challengeId}
-      and user_id = ${input.userId}
+    select p.wake_time, p.random_check_in_from, p.random_check_in_to,
+           p.status, p.sleep_locked_at, u.timezone as user_timezone
+    from challenge_participation p
+    join app_user u on u.id = p.user_id
+    where p.challenge_id = ${input.challengeId}
+      and p.user_id = ${input.userId}
     limit 1
   `;
 
@@ -185,14 +230,19 @@ export async function passVerification(input: {
     throw new Error("You must enable Sleep Lock before completing a wake check-in.");
   }
 
+  const timezone = participation.user_timezone ?? "UTC";
   const now = new Date();
-  const fromDate = timeStringToTodayDate(participation.random_check_in_from);
-  const toDate = timeStringToTodayDate(participation.random_check_in_to);
 
-  if (now < fromDate || now > toDate) {
-    const from = participation.random_check_in_from;
-    const to = participation.random_check_in_to;
-    throw new Error(`Wake check-in is only available between ${from} and ${to}.`);
+  // 유저 타임존 기준으로 체크인 가능 시간 검증
+  const localHour = getLocalHour(timezone);
+  const [fromH] = participation.random_check_in_from.split(":").map(Number);
+  const [toH, toM] = participation.random_check_in_to.split(":").map(Number);
+  const toHourDecimal = toH + toM / 60;
+
+  if (localHour < fromH || localHour >= toHourDecimal) {
+    throw new Error(
+      `Wake check-in is only available between ${participation.random_check_in_from} and ${participation.random_check_in_to} (${timezone}).`
+    );
   }
 
   const sleepLockedAt = participation.sleep_locked_at
@@ -224,6 +274,111 @@ export async function passVerification(input: {
   };
 }
 
+/**
+ * 타임존 기반 자동 정산
+ * 크론잡이 매시간 호출 → 각 유저의 타임존 기준 오전 7시가 지난 참여자만 정산
+ */
+export async function settleByTimezone() {
+  const sql = getSql();
+
+  // 아직 정산 안 된 참여자 전체 조회 (staked 또는 sleep_locked 또는 passed)
+  const participants = await sql<{
+    participation_id: string;
+    user_id: string;
+    status: string;
+    stake_amount_ton: number;
+    challenge_id: string;
+    user_timezone: string | null;
+  }[]>`
+    select p.id as participation_id, p.user_id, p.status,
+           p.stake_amount_ton, p.challenge_id,
+           u.timezone as user_timezone
+    from challenge_participation p
+    join app_user u on u.id = p.user_id
+    join challenge c on c.id = p.challenge_id
+    where p.status in ('staked', 'sleep_locked', 'passed')
+      and c.challenge_date = current_date
+  `;
+
+  // 유저 타임존 기준 오전 7시가 지난 참여자만 필터링
+  const toSettle = participants.filter((p) => {
+    const tz = p.user_timezone ?? "UTC";
+    const localHour = getLocalHour(tz);
+    return localHour >= 7; // 오전 7시 이후면 정산 대상
+  });
+
+  if (toSettle.length === 0) return { settled: 0 };
+
+  // 챌린지별로 그룹화
+  const byChallengeId = new Map<string, typeof toSettle>();
+  for (const p of toSettle) {
+    const group = byChallengeId.get(p.challenge_id) ?? [];
+    group.push(p);
+    byChallengeId.set(p.challenge_id, group);
+  }
+
+  let totalSettled = 0;
+
+  for (const [challengeId, group] of byChallengeId) {
+    const winners = group.filter((p) => p.status === "passed");
+    const losers = group.filter((p) => p.status !== "passed");
+    const failedStakeTon = losers.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
+
+    const payout = calculatePoolPayout({
+      failedStakeTon,
+      successCount: winners.length
+    });
+
+    await sql.begin(async (transaction) => {
+      for (const loser of losers) {
+        await transaction`
+          update challenge_participation
+          set status = 'failed', settled_reward_ton = 0
+          where id = ${loser.participation_id}
+        `;
+      }
+
+      for (const winner of winners) {
+        await transaction`
+          update challenge_participation
+          set status = 'settled', settled_reward_ton = ${payout.perWinnerTon}
+          where id = ${winner.participation_id}
+        `;
+
+        await transaction`
+          update app_user
+          set net_profit_ton = net_profit_ton + ${payout.perWinnerTon}
+          where id = ${winner.user_id}
+        `;
+      }
+
+      // 챌린지 전체가 다 정산됐으면 challenge 상태도 업데이트
+      const [remaining] = await transaction<{ cnt: number }[]>`
+        select count(*)::int as cnt
+        from challenge_participation
+        where challenge_id = ${challengeId}
+          and status in ('staked', 'sleep_locked', 'passed')
+      `;
+      if ((remaining?.cnt ?? 0) === 0) {
+        await transaction`
+          update challenge
+          set status = 'settled',
+              platform_fee_ton = ${payout.platformFeeTon},
+              per_winner_reward_ton = ${payout.perWinnerTon}
+          where id = ${challengeId}
+        `;
+      }
+    });
+
+    totalSettled += group.length;
+  }
+
+  return { settled: totalSettled };
+}
+
+/**
+ * 기존 수동 정산 (admin용)
+ */
 export async function settleTodayChallenge(challengeDate?: string) {
   const sql = getSql();
   const [challenge] = await sql<{
@@ -271,8 +426,7 @@ export async function settleTodayChallenge(challengeDate?: string) {
     for (const loser of losers) {
       await transaction`
         update challenge_participation
-        set status = 'failed',
-            settled_reward_ton = 0
+        set status = 'failed', settled_reward_ton = 0
         where id = ${loser.participation_id}
       `;
     }
@@ -280,8 +434,7 @@ export async function settleTodayChallenge(challengeDate?: string) {
     for (const winner of winners) {
       await transaction`
         update challenge_participation
-        set status = 'settled',
-            settled_reward_ton = ${payout.perWinnerTon}
+        set status = 'settled', settled_reward_ton = ${payout.perWinnerTon}
         where id = ${winner.participation_id}
       `;
 
