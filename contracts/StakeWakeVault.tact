@@ -48,6 +48,7 @@ message Stake {
 }
 
 contract StakeWakeVault with Ownable {
+
     owner: Address;
     operator: Address;
     platformFeeBps: Int as uint16;
@@ -55,14 +56,19 @@ contract StakeWakeVault with Ownable {
     currentRoundId: Int as uint32;
     roundOpen: Bool;
     roundFinalized: Bool;
+
     minStake: Int as coins;
     closesAt: Int as uint32;
 
     totalStaked: Int as coins;
     failedPool: Int as coins;
+
+    totalSuccessStake: Int as coins;
+    distributablePool: Int as coins;
+
     successCount: Int as uint32;
     paidSuccessCount: Int as uint32;
-    perWinnerReward: Int as coins;
+
     platformFeesAccrued: Int as coins;
 
     stakes: map<Address, StakeEntry>;
@@ -78,9 +84,10 @@ contract StakeWakeVault with Ownable {
         self.closesAt = 0;
         self.totalStaked = 0;
         self.failedPool = 0;
+        self.totalSuccessStake = 0;
+        self.distributablePool = 0;
         self.successCount = 0;
         self.paidSuccessCount = 0;
-        self.perWinnerReward = 0;
         self.platformFeesAccrued = 0;
     }
 
@@ -100,9 +107,10 @@ contract StakeWakeVault with Ownable {
         self.closesAt = msg.closesAt;
         self.totalStaked = 0;
         self.failedPool = 0;
+        self.totalSuccessStake = 0;
+        self.distributablePool = 0;
         self.successCount = 0;
         self.paidSuccessCount = 0;
-        self.perWinnerReward = 0;
         self.stakes = emptyMap();
     }
 
@@ -118,7 +126,6 @@ contract StakeWakeVault with Ownable {
             status: 0,
             claimed: false
         });
-
         self.totalStaked += context().value;
     }
 
@@ -142,11 +149,11 @@ contract StakeWakeVault with Ownable {
         if (msg.success) {
             stake.status = 1;
             self.successCount += 1;
+            self.totalSuccessStake += stake.amount;
         } else {
             stake.status = 2;
             self.failedPool += stake.amount;
         }
-
         self.stakes.set(msg.participant, stake);
     }
 
@@ -156,9 +163,8 @@ contract StakeWakeVault with Ownable {
         throwUnless(215, !self.roundFinalized);
         throwUnless(216, msg.roundId == self.currentRoundId);
 
-        let distributable = self.failedPool * (10000 - self.platformFeeBps) / 10000;
-        let fee = self.failedPool - distributable;
-        self.perWinnerReward = self.successCount > 0 ? distributable / self.successCount : 0;
+        let fee = self.failedPool * self.platformFeeBps / 10000;
+        self.distributablePool = self.failedPool - fee;
         self.platformFeesAccrued += fee;
         self.roundFinalized = true;
     }
@@ -176,9 +182,14 @@ contract StakeWakeVault with Ownable {
         self.paidSuccessCount += 1;
         self.stakes.set(sender(), stake);
 
+        let reward: Int = 0;
+        if (self.totalSuccessStake > 0) {
+            reward = self.distributablePool * stake.amount / self.totalSuccessStake;
+        }
+
         send(SendParameters {
             to: sender(),
-            value: stake.amount + self.perWinnerReward,
+            value: stake.amount + reward,
             bounce: false
         });
     }
@@ -199,8 +210,12 @@ contract StakeWakeVault with Ownable {
         return self.currentRoundId;
     }
 
-    get fun getPerWinnerReward(): Int {
-        return self.perWinnerReward;
+    get fun getDistributablePool(): Int {
+        return self.distributablePool;
+    }
+
+    get fun getTotalSuccessStake(): Int {
+        return self.totalSuccessStake;
     }
 
     get fun getPlatformFeesAccrued(): Int {
