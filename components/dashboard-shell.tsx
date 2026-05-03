@@ -79,6 +79,14 @@ function getDeviceFingerprint() {
   return created;
 }
 
+function getTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
 const WAKE_TIME_OPTIONS = [
   { value: "05:00", label: "5:00 AM" },
   { value: "05:30", label: "5:30 AM" },
@@ -135,13 +143,17 @@ export function DashboardShell() {
     const initData = getTelegramInitData();
     if (!initData || authenticated) return;
 
+    // 기기 타임존 자동 감지 — 첫 로그인 시에만 서버에 저장됨
+    const timezone = getTimezone();
+
     startTransition(() => {
       getJson<{ ok: true; user: SessionUser }>("/api/auth/telegram", {
         method: "POST",
         body: JSON.stringify({
           initData,
           deviceId: getDeviceFingerprint(),
-          inviteCode: inviteCode || undefined
+          inviteCode: inviteCode || undefined,
+          timezone
         })
       })
         .then(refresh)
@@ -377,6 +389,9 @@ export function DashboardShell() {
             <p className="muted">
               Daily fee {data ? formatTon(data.dailyFeeTon) : "--"}
             </p>
+            {data?.user?.timezone ? (
+              <p className="muted">Your timezone: {data.user.timezone}</p>
+            ) : null}
             <div className="separator" />
             <TonConnectButton />
             <button className="button primary" onClick={bindWallet} disabled={!canBindWallet || pending}>
@@ -528,6 +543,10 @@ export function DashboardShell() {
               <div className="list-item">
                 <span>Group Size</span>
                 <span className="mono">{data?.user?.groupMemberCount ?? 0} members</span>
+              </div>
+              <div className="list-item">
+                <span>Timezone</span>
+                <span className="mono">{data?.user?.timezone ?? "Not set"}</span>
               </div>
             </div>
           </div>
