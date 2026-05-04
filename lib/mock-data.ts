@@ -24,7 +24,6 @@ export function getFallbackUser(): SessionUser {
     netProfitTon: 12.4,
     nftTier: "Bronze",
     groupMemberCount: 10,
-    groupMemberCount: 10,
     timezone: "UTC",   // ← 이 줄 추가
   };
 }
