@@ -23,7 +23,9 @@ export function getFallbackUser(): SessionUser {
     successStreak: 9,
     netProfitTon: 12.4,
     nftTier: "Bronze",
-    groupMemberCount: 10
+    groupMemberCount: 10,
+    groupMemberCount: 10,
+    timezone: "UTC",   // ← 이 줄 추가
   };
 }
 
