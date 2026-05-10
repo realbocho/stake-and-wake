@@ -143,7 +143,7 @@ export function DashboardShell() {
     const initData = getTelegramInitData();
     if (!initData || authenticated) return;
 
-    // 기기 타임존 자동 감지 — 첫 로그인 시에만 서버에 저장됨
+    // Auto-detect device timezone — saved to server only on first login
     const timezone = getTimezone();
 
     startTransition(() => {
@@ -369,6 +369,32 @@ export function DashboardShell() {
               <button className="button primary" onClick={withdraw} disabled={pending || !canWithdraw}>
                 Withdraw {canWithdraw ? formatTon(data?.user?.netProfitTon ?? 0) : ""}
               </button>
+              <button
+                className="button ghost"
+                disabled
+                title="Friend invite feature is under development"
+                style={{
+                  opacity: 0.45,
+                  cursor: "not-allowed",
+                  position: "relative",
+                  borderStyle: "dashed",
+                }}
+              >
+                🔗 Invite Friends
+                <span style={{
+                  position: "absolute",
+                  top: "-8px",
+                  right: "-4px",
+                  background: "var(--gold)",
+                  color: "#18120b",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  padding: "2px 6px",
+                  borderRadius: "999px",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}>Soon</span>
+              </button>
             </div>
             {!authenticated ? (
               <div className="alert">
@@ -497,15 +523,21 @@ export function DashboardShell() {
         </div>
 
         <div className="stack">
-          <div className="panel stack">
-            <div className="label">Join a Group</div>
+          <div className="panel stack coming-soon-panel" style={{ position: "relative", overflow: "hidden" }}>
+            <div className="coming-soon-overlay">
+              <span className="coming-soon-badge">🚧 Under Development</span>
+              <p className="coming-soon-text">Team join feature coming soon</p>
+            </div>
+            <div className="label" style={{ opacity: 0.4 }}>Join a Group</div>
             <input
               className="input mono"
               placeholder="Group invite code"
               value={groupInviteCode}
-              onChange={(event) => setGroupInviteCode(event.target.value)}
+              onChange={() => {}}
+              disabled
+              style={{ opacity: 0.4 }}
             />
-            <button className="button ghost" onClick={joinGroup} disabled={pending || !authenticated}>
+            <button className="button ghost" disabled style={{ opacity: 0.4, cursor: "not-allowed" }}>
               Join Group
             </button>
           </div>
