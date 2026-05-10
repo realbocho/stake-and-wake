@@ -12,6 +12,7 @@
     "check:contracts": "tact --config tact.config.json --check"
   },
   "dependencies": {
+    "@telegram-apps/analytics": "^0.1.0",
     "@ton/core": "^0.62.0",
     "@tonconnect/ui-react": "^2.0.9",
     "jose": "^5.9.6",
