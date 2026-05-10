@@ -104,6 +104,25 @@ export default function GuidePage() {
             </p>
           </div>
 
+          <div className="panel stack coming-soon-panel" style={{ position: "relative", overflow: "hidden" }}>
+            <div className="coming-soon-overlay">
+              <span className="coming-soon-badge">🚧 Under Development</span>
+              <p className="coming-soon-text">Friend invite &amp; team features are not yet available</p>
+            </div>
+            <div className="label" style={{ opacity: 0.4 }}>Step 5 — Invite Friends &amp; Join a Team</div>
+            <p className="muted" style={{ opacity: 0.4 }}>
+              Invite friends using your personal referral link and earn bonus TON
+              for every friend who joins and completes a challenge. Share your
+              invite code via Telegram to get started.
+            </p>
+            <p className="muted" style={{ opacity: 0.4 }}>
+              Join a group with a shared invite code to compete on a team
+              leaderboard. Groups unlock a weekly bonus pool split among all
+              members whose entire team finishes the week without a single
+              failure.
+            </p>
+          </div>
+
           <div className="panel stack">
             <div className="label">FAQ</div>
 
