@@ -17,11 +17,10 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-        <Script
-          src="https://tganalytics.xyz/index.js"
-          strategy="afterInteractive"
-          onLoad={`window.telegramAnalytics.init({ token: '${process.env.NEXT_PUBLIC_ANALYTICS_TOKEN}', appName: 'stake_and_wake' })`}
-        />
+        <Script src="https://tganalytics.xyz/index.js" strategy="afterInteractive" />
+        <Script id="init-analytics" strategy="afterInteractive">
+          {`window.telegramAnalytics && window.telegramAnalytics.init({ token: '${process.env.NEXT_PUBLIC_ANALYTICS_TOKEN}', appName: 'stake_and_wake' });`}
+        </Script>
       </head>
       <body>
         <AppProviders>{children}</AppProviders>
