@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AppProviders } from "@/components/app-providers";
 import Script from "next/script";
-import telegramAnalytics from "@telegram-apps/analytics";
+import * as telegramAnalytics from "@telegram-apps/analytics";
 
 telegramAnalytics.init({
   token: process.env.NEXT_PUBLIC_ANALYTICS_TOKEN ?? "",
