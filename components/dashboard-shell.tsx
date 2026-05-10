@@ -459,7 +459,13 @@ export function DashboardShell() {
                 <div className="value">{data?.challenge.title ?? "Morning Discipline Pool"}</div>
               </div>
               <span className="badge">
-                {data ? englishTime(data.challenge.randomCheckInFrom, data.challenge.randomCheckInTo) : "--"}
+                {(() => {
+                  const [h, m] = wakeTime.split(":").map(Number);
+                  const total = h * 60 + m;
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  const fmt = (mins: number) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+                  return `ex. ${wakeTime} → ${fmt(total - 12)}~${fmt(total + 12)}`;
+                })()}
               </span>
             </div>
 
