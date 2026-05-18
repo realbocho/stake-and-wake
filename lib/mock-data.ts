@@ -9,7 +9,7 @@ export function getFallbackChallenge(): ChallengeView {
     wakeTime: "05:30",
     randomCheckInFrom: "05:18",
     randomCheckInTo: "05:42",
-    poolTon: 87.5
+    poolTon: 87.5,
     operatorInjectionTon: 0  // ← 이 줄 추가
   };
 }
