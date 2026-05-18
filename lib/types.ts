@@ -1,5 +1,4 @@
 export type NftTier = "Bronze" | "Silver" | "Gold" | "Diamond";
-
 export type SessionUser = {
   id: string;
   telegramId: string;
@@ -10,9 +9,8 @@ export type SessionUser = {
   netProfitTon: number;
   nftTier: NftTier;
   groupMemberCount: number;
-  timezone: string | null; // e.g. "Asia/Seoul", "America/New_York"
+  timezone: string | null;
 };
-
 export type ChallengeStatus =
   | "open"
   | "staked"
@@ -21,7 +19,6 @@ export type ChallengeStatus =
   | "passed"
   | "failed"
   | "settled";
-
 export type ChallengeView = {
   id: string;
   title: string;
@@ -30,8 +27,8 @@ export type ChallengeView = {
   randomCheckInFrom: string;
   randomCheckInTo: string;
   poolTon: number;
+  operatorInjectionTon: number;
 };
-
 export type LeaderboardEntry = {
   userId: string;
   displayName: string;
@@ -39,12 +36,10 @@ export type LeaderboardEntry = {
   bestWakeTime: string;
   netProfitTon: number;
 };
-
 export type WalletBindingPayload = {
   ok: true;
   walletAddress: string;
 };
-
 export type PaymentIntentView = {
   id: string;
   amountTon: number;
@@ -54,7 +49,6 @@ export type PaymentIntentView = {
   validUntil: number;
   challengeId: string;
 };
-
 export type GroupView = {
   id: string;
   name: string;
