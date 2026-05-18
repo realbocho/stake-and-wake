@@ -332,9 +332,17 @@ export async function settleByTimezone() {
     const failedStakeTon = losers.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
 
     const totalSuccessStakeTon = winners.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
+
+    // 운영자가 이 챌린지에 주입한 TON 조회
+    const [injRow] = await sql<{ operator_injection_ton: number }[]>`
+      select operator_injection_ton from challenge where id = ${challengeId} limit 1
+    `;
+    const operatorInjectionTon = Number(injRow?.operator_injection_ton ?? 0);
+
     const payout = calculatePoolPayout({
       failedStakeTon,
-      totalSuccessStakeTon
+      totalSuccessStakeTon,
+      operatorInjectionTon
     });
     const averageWinnerRewardTon = winners.length > 0 ? payout.distributablePool / winners.length : 0;
 
@@ -399,8 +407,9 @@ export async function settleTodayChallenge(challengeDate?: string) {
   const [challenge] = await sql<{
     id: string;
     platform_fee_rate: number;
+    operator_injection_ton: number;
   }[]>`
-    select id, platform_fee_rate
+    select id, platform_fee_rate, operator_injection_ton
     from challenge
     where challenge_date = coalesce(${challengeDate ?? null}::date, current_date)
     limit 1
@@ -427,7 +436,8 @@ export async function settleTodayChallenge(challengeDate?: string) {
   const totalSuccessStakeTon = winners.reduce((sum, item) => sum + Number(item.stake_amount_ton), 0);
   const payout = calculatePoolPayout({
     failedStakeTon,
-    totalSuccessStakeTon
+    totalSuccessStakeTon,
+    operatorInjectionTon: Number(challenge.operator_injection_ton ?? 0)
   });
 
   const averageWinnerRewardTon = winners.length > 0 ? payout.distributablePool / winners.length : 0;
@@ -475,7 +485,8 @@ export async function settleTodayChallenge(challengeDate?: string) {
     winners: winners.length,
     failedStakeTon,
     perWinnerTon: averageWinnerRewardTon,
-    platformFeeTon: payout.platformFeeTon
+    platformFeeTon: payout.platformFeeTon,
+    operatorInjectionTon: payout.operatorInjectionTon
   };
 }
 
