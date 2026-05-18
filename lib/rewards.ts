@@ -2,15 +2,27 @@ import { env } from "@/lib/env";
 
 export function calculatePoolPayout(input: {
   failedStakeTon: number;
-  totalSuccessStakeTon: number;  // [변경] successCount → totalSuccessStakeTon
+  totalSuccessStakeTon: number;
+  /**
+   * 운영자가 실패자 풀에 직접 주입한 TON.
+   * 플랫폼 수수료 없이 100% 위너에게 분배된다.
+   * (운영자가 자발적으로 주입하는 보조금이므로 수수료 공제 제외)
+   */
+  operatorInjectionTon?: number;
 }) {
-  const distributablePool = input.failedStakeTon * (1 - env.platformFeeRate);
+  const injection = input.operatorInjectionTon ?? 0;
+
+  // 실패자 스테이크에서 플랫폼 수수료 공제
+  const distributableFromFailed = input.failedStakeTon * (1 - env.platformFeeRate);
+  const platformFeeTon = input.failedStakeTon * env.platformFeeRate;
+
+  // 운영자 주입분은 수수료 없이 100% 분배
+  const distributablePool = distributableFromFailed + injection;
 
   return {
     distributablePool,
-    platformFeeTon: input.failedStakeTon * env.platformFeeRate,
-    // [변경] 개별 보상은 Claim 시점에 비율로 계산하므로 여기선 제거
-    // perWinnerTon 대신 distributablePool을 그대로 씀
+    platformFeeTon,
+    operatorInjectionTon: injection,
   };
 }
 
