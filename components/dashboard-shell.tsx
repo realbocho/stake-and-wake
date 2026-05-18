@@ -444,7 +444,7 @@ export function DashboardShell() {
           </div>
           <div className="panel kpi">
             <div className="label">Active Pool</div>
-            <div className="value mono">{data ? formatTon(data.challenge.poolTon) : "--"}</div>
+            <div className="value mono">{data ? formatTon(data.challenge.poolTon + data.challenge.operatorInjectionTon) : "--"}</div>
             <div className="muted">Failed stakes minus platform fee split among winners.</div>
           </div>
         </div>
