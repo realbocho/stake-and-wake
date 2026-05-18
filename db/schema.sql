@@ -92,6 +92,28 @@ create table if not exists payment_intent (
   created_at timestamptz not null default now()
 );
 
+create table if not exists operator_pool_injection (
+  id uuid primary key,
+  challenge_id uuid not null references challenge(id) on delete cascade,
+  amount_ton numeric(18, 4) not null,
+  source text not null default 'manual', -- 'manual' | 'scheduled_daily' | 'scheduled_weekly'
+  note text,
+  injected_by text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists operator_injection_schedule (
+  id uuid primary key,
+  frequency text not null, -- 'daily' | 'weekly'
+  amount_ton numeric(18, 4) not null,
+  day_of_week integer, -- weekly 전용 (0=일 ~ 6=토)
+  enabled boolean not null default true,
+  note text,
+  last_run_at timestamptz,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 insert into group_room (id, name, invite_code)
 values ('founders-circle', 'Founders Circle', 'FOUNDERS10')
 on conflict (id) do nothing;
@@ -102,3 +124,5 @@ on conflict (id) do nothing;
 -- alter table challenge_participation add column if not exists ends_at timestamptz;
 -- alter table payment_intent add column if not exists tx_hash text;
 -- alter table challenge add column if not exists operator_injection_ton numeric(18, 4) not null default 0;
+-- create table if not exists operator_pool_injection ( ... ); -- 위 테이블 정의 참고
+-- create table if not exists operator_injection_schedule ( ... ); -- 위 테이블 정의 참고
