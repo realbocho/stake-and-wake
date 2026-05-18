@@ -92,7 +92,7 @@ contract StakeWakeVault with Ownable {
     }
 
     receive() {
-        cashback(sender());
+        self.failedPool += context().value;
     }
 
     receive(msg: OpenRound) {
