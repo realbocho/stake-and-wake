@@ -28,6 +28,7 @@ create table if not exists challenge (
   min_stake_ton numeric(18, 4) not null,
   daily_fee_ton numeric(18, 4) not null,
   pool_ton numeric(18, 4) not null default 0,
+  operator_injection_ton numeric(18, 4) not null default 0,
   platform_fee_ton numeric(18, 4) not null default 0,
   per_winner_reward_ton numeric(18, 4) not null default 0,
   platform_fee_rate numeric(8, 4) not null,
@@ -100,3 +101,4 @@ on conflict (id) do nothing;
 -- alter table challenge_participation add column if not exists duration_days integer not null default 7;
 -- alter table challenge_participation add column if not exists ends_at timestamptz;
 -- alter table payment_intent add column if not exists tx_hash text;
+-- alter table challenge add column if not exists operator_injection_ton numeric(18, 4) not null default 0;
