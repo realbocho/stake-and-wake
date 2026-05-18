@@ -12,6 +12,7 @@ type ChallengeRow = {
   random_check_in_from: string;
   random_check_in_to: string;
   pool_ton: number;
+  operator_injection_ton: number;
 };
 
 function mapChallenge(row: ChallengeRow): ChallengeView {
@@ -22,14 +23,11 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
     wakeTime: row.wake_time,
     randomCheckInFrom: row.random_check_in_from,
     randomCheckInTo: row.random_check_in_to,
-    poolTon: Number(row.pool_ton)
+    poolTon: Number(row.pool_ton),
+    operatorInjectionTon: Number(row.operator_injection_ton ?? 0)
   };
 }
 
-/**
- * 특정 타임존에서 현재 로컬 시각이 HH:MM 형식으로 몇 시인지 반환
- * 예: getLocalHour("Asia/Seoul") → 7 (오전 7시)
- */
 function getLocalHour(timezone: string): number {
   try {
     const now = new Date();
@@ -40,14 +38,10 @@ function getLocalHour(timezone: string): number {
     });
     return Number(formatter.format(now));
   } catch {
-    // 잘못된 타임존이면 UTC 사용
     return new Date().getUTCHours();
   }
 }
 
-/**
- * 특정 타임존에서 오늘 날짜를 YYYY-MM-DD 형식으로 반환
- */
 function getLocalDate(timezone: string): string {
   try {
     const now = new Date();
@@ -57,13 +51,9 @@ function getLocalDate(timezone: string): string {
   }
 }
 
-/**
- * 타임존 기준 HH:MM 시간 문자열을 오늘 날짜의 Date 객체로 변환
- */
 function timeStringToDateInTimezone(hhmm: string, timezone: string): Date {
   const localDate = getLocalDate(timezone);
   const [h, m] = hhmm.split(":").map(Number);
-  // UTC 기준으로 변환
   const localDateObj = new Date(`${localDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
   const tzOffset =
     new Date().getTime() -
@@ -85,7 +75,8 @@ function timeStringToDateInTimezone(hhmm: string, timezone: string): Date {
 export async function getActiveChallengeForUser(userId: string) {
   const sql = getSql();
   const [row] = await sql<ChallengeRow[]>`
-    select c.id, c.title, p.status, p.wake_time, p.random_check_in_from, p.random_check_in_to, c.pool_ton
+    select c.id, c.title, p.status, p.wake_time, p.random_check_in_from,
+           p.random_check_in_to, c.pool_ton, c.operator_injection_ton
     from challenge_participation p
     join challenge c on c.id = p.challenge_id
     where p.user_id = ${userId}
@@ -101,7 +92,7 @@ export async function getOrCreateTonightChallenge() {
     select id, title, 'open'::text as status, default_wake_time as wake_time,
            default_random_from as random_check_in_from,
            default_random_to as random_check_in_to,
-           pool_ton
+           pool_ton, operator_injection_ton
     from challenge
     where challenge_date = current_date
     limit 1
@@ -125,7 +116,8 @@ export async function getOrCreateTonightChallenge() {
     wakeTime: "05:30",
     randomCheckInFrom: "05:18",
     randomCheckInTo: "05:42",
-    poolTon: 0
+    poolTon: 0,
+    operatorInjectionTon: 0
   } satisfies ChallengeView;
 }
 
@@ -242,7 +234,6 @@ export async function passVerification(input: {
   const timezone = participation.user_timezone ?? "UTC";
   const now = new Date();
 
-  // 유저 타임존 기준으로 체크인 가능 시간 검증
   const localHour = getLocalHour(timezone);
   const [fromH] = participation.random_check_in_from.split(":").map(Number);
   const [toH, toM] = participation.random_check_in_to.split(":").map(Number);
@@ -281,14 +272,9 @@ export async function passVerification(input: {
   };
 }
 
-/**
- * 타임존 기반 자동 정산
- * 크론잡이 매시간 호출 → 각 유저의 타임존 기준 오전 7시가 지난 참여자만 정산
- */
 export async function settleByTimezone() {
   const sql = getSql();
 
-  // 아직 정산 안 된 참여자 전체 조회 (staked 또는 sleep_locked 또는 passed)
   const participants = await sql<{
     participation_id: string;
     user_id: string;
@@ -307,16 +293,14 @@ export async function settleByTimezone() {
       and c.challenge_date = current_date
   `;
 
-  // 유저 타임존 기준 오전 7시가 지난 참여자만 필터링
   const toSettle = participants.filter((p) => {
     const tz = p.user_timezone ?? "UTC";
     const localHour = getLocalHour(tz);
-    return localHour >= 7; // 오전 7시 이후면 정산 대상
+    return localHour >= 7;
   });
 
   if (toSettle.length === 0) return { settled: 0 };
 
-  // 챌린지별로 그룹화
   const byChallengeId = new Map<string, typeof toSettle>();
   for (const p of toSettle) {
     const group = byChallengeId.get(p.challenge_id) ?? [];
@@ -330,10 +314,8 @@ export async function settleByTimezone() {
     const winners = group.filter((p) => p.status === "passed");
     const losers = group.filter((p) => p.status !== "passed");
     const failedStakeTon = losers.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
-
     const totalSuccessStakeTon = winners.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
 
-    // 운영자가 이 챌린지에 주입한 TON 조회
     const [injRow] = await sql<{ operator_injection_ton: number }[]>`
       select operator_injection_ton from challenge where id = ${challengeId} limit 1
     `;
@@ -375,7 +357,6 @@ export async function settleByTimezone() {
         `;
       }
 
-      // 챌린지 전체가 다 정산됐으면 challenge 상태도 업데이트
       const [remaining] = await transaction<{ cnt: number }[]>`
         select count(*)::int as cnt
         from challenge_participation
@@ -399,9 +380,6 @@ export async function settleByTimezone() {
   return { settled: totalSettled };
 }
 
-/**
- * 기존 수동 정산 (admin용)
- */
 export async function settleTodayChallenge(challengeDate?: string) {
   const sql = getSql();
   const [challenge] = await sql<{
