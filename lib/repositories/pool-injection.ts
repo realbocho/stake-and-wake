@@ -38,8 +38,7 @@ export async function injectIntoPool(input: {
     // 챌린지 누적 주입량 업데이트
     await tx`
       update challenge
-      set operator_injection_ton = operator_injection_ton + ${input.amountTon},
-          pool_ton = pool_ton + ${input.amountTon}
+      set operator_injection_ton = operator_injection_ton + ${input.amountTon}
       where id = ${challenge.id}
     `;
 
