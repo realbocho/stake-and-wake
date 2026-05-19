@@ -56,7 +56,7 @@ async function main() {
   console.log(`💸 출금 금액: ${AMOUNT} TON → ${TO}`);
 
   const withdrawFeesBody = beginCell()
-    .storeUint(0x7a8b89c1, 32)
+    .storeUint(0xe649175b, 32)  // WithdrawFees opcode (컴파일된 ABI 값)
     .storeUint(0, 64)
     .storeCoins(toNano(AMOUNT))
     .storeAddress(Address.parse(TO))
