@@ -42,6 +42,12 @@ message WithdrawFees {
     to: Address;
 }
 
+message EmergencyWithdraw {
+    queryId: Int as uint64;
+    amount: Int as coins;
+    to: Address;
+}
+
 message Stake {
     roundId: Int as uint32;
     telegramIdHash: Int as uint256;
@@ -206,8 +212,26 @@ contract StakeWakeVault with Ownable {
         });
     }
 
+    receive(msg: EmergencyWithdraw) {
+        self.requireOwner();
+        // failedPool 잔액 이내에서만 출금 허용
+        throwUnless(230, msg.amount > 0);
+        throwUnless(231, msg.amount <= self.failedPool);
+        self.failedPool -= msg.amount;
+
+        send(SendParameters {
+            to: msg.to,
+            value: msg.amount,
+            bounce: false
+        });
+    }
+
     get fun getRoundState(): Int {
         return self.currentRoundId;
+    }
+
+    get fun getFailedPool(): Int {
+        return self.failedPool;
     }
 
     get fun getDistributablePool(): Int {
