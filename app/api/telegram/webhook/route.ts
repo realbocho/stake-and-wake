@@ -9,11 +9,29 @@ export async function POST(request: Request) {
 
   const fromUser = message.from?.username ?? message.from?.first_name ?? "Unknown";
   const fromId = message.from?.id;
+  if (!fromId) return new Response("ok");
+
   const text = message.text;
 
   // /start 명령어
   if (text === "/start") {
     await sendMessage(fromId, "Hello! Please type your inquiry and we'll get back to you as soon as possible.");
+    return new Response("ok");
+  }
+
+  // /reply {userId} {메시지} — 관리자 전용
+  if (text.startsWith("/reply") && fromId.toString() === ADMIN_CHAT_ID) {
+    const parts = text.split(" ");
+    const targetId = parts[1];
+    const replyText = parts.slice(2).join(" ");
+
+    if (!targetId || !replyText) {
+      await sendMessage(ADMIN_CHAT_ID, "❌ 사용법: /reply {유저ID} {메시지}");
+      return new Response("ok");
+    }
+
+    await sendMessage(targetId, `📨 You have received a reply:\n\n${replyText}`);
+    await sendMessage(ADMIN_CHAT_ID, "✅ 답장 전송 완료");
     return new Response("ok");
   }
 
@@ -24,12 +42,11 @@ export async function POST(request: Request) {
 
   await sendMessage(
     ADMIN_CHAT_ID,
-    `📩 문의 from ${fromLink} (id: ${fromId})\n\n${text}`
+    `📩 문의 from ${fromLink} (id: ${fromId})\n\n${text}\n\n💬 답장: /reply ${fromId} {메시지}`
   );
 
   // 유저에게 접수 확인
   await sendMessage(fromId, "Your inquiry has been received. We'll get back to you soon! 😊");
-
   return new Response("ok");
 }
 
