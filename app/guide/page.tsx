@@ -16,6 +16,19 @@ export default function GuidePage() {
       </section>
 
       <section style={{ marginTop: 20 }}>
+        <div className="panel stack" style={{ marginBottom: 20, borderColor: "var(--accent)", display: "flex", flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 20 }}>💬</span>
+          <p className="muted" style={{ margin: 0 }}>
+            Have a question or issue? Send a message directly to{" "}
+            <a href="https://t.me/stakeandwake_bot" style={{ color: "var(--accent)" }}>
+              @stakeandwake_bot
+            </a>{" "}
+            on Telegram and our team will get back to you as soon as possible.
+          </p>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 20 }}>
         <div className="panel stack" style={{ marginBottom: 20 }}>
           <div className="label">Daily flow</div>
           <div className="list">
