@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   );
 
   // 유저에게 접수 확인
-  await sendMessage(fromId, "Your inquiry has been received. We'll get back to you soon! 😊");
+  await sendMessage(fromId, "Your inquiry has been received. We'll get back to you soon! 😊 (Press the left blue button to open the app)");
   return new Response("ok");
 }
 
