@@ -379,7 +379,7 @@ export function DashboardShell() {
             <h1 className="title">Stake your discipline. Wake before dawn.</h1>
             <p className="subtitle">
               Deposit TON, stay off your phone, and pass a live wake-up
-              verification between 5:00 AM and 7:00 AM every day to split
+              verification during your chosen wake window every day to split
               the losers&apos; pool at the end of your challenge period.
             </p>
 
