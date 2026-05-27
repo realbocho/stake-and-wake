@@ -28,17 +28,22 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
   };
 }
 
-function getLocalHour(timezone: string): number {
+/** 현재 시각을 해당 timezone 기준 "시간 * 60 + 분" 으로 반환 */
+function getLocalMinutes(timezone: string): number {
   try {
     const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-US", {
+    const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
       hour: "numeric",
+      minute: "numeric",
       hour12: false
-    });
-    return Number(formatter.format(now));
+    }).formatToParts(now);
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    return h * 60 + m;
   } catch {
-    return new Date().getUTCHours();
+    const now = new Date();
+    return now.getUTCHours() * 60 + now.getUTCMinutes();
   }
 }
 
@@ -234,12 +239,13 @@ export async function passVerification(input: {
   const timezone = participation.user_timezone ?? "UTC";
   const now = new Date();
 
-  const localHour = getLocalHour(timezone);
-  const [fromH] = participation.random_check_in_from.split(":").map(Number);
+  const localMins = getLocalMinutes(timezone);
+  const [fromH, fromM] = participation.random_check_in_from.split(":").map(Number);
   const [toH, toM] = participation.random_check_in_to.split(":").map(Number);
-  const toHourDecimal = toH + toM / 60;
+  const fromMins = fromH * 60 + fromM;
+  const toMins = toH * 60 + toM;
 
-  if (localHour < fromH || localHour >= toHourDecimal) {
+  if (localMins < fromMins || localMins > toMins) {
     throw new Error(
       `Wake check-in is only available between ${participation.random_check_in_from} and ${participation.random_check_in_to} (${timezone}).`
     );
@@ -295,8 +301,11 @@ export async function settleByTimezone() {
 
   const toSettle = participants.filter((p) => {
     const tz = p.user_timezone ?? "UTC";
-    const localHour = getLocalHour(tz);
-    return localHour >= 7;
+    const localMins = getLocalMinutes(tz);
+    // 현지 시각 07:00(420분) 이후에만 settle 대상으로 포함
+    // sleep_locked 상태는 아직 기상 창이 열리지 않았을 수 있으므로 제외
+    if (p.status === "sleep_locked") return false;
+    return localMins >= 7 * 60;
   });
 
   if (toSettle.length === 0) return { settled: 0 };
@@ -312,7 +321,9 @@ export async function settleByTimezone() {
 
   for (const [challengeId, group] of byChallengeId) {
     const winners = group.filter((p) => p.status === "passed");
-    const losers = group.filter((p) => p.status !== "passed");
+    const losers = group.filter(
+      (p) => p.status !== "passed" && p.status !== "sleep_locked"
+    );
     const failedStakeTon = losers.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
     const totalSuccessStakeTon = winners.reduce((sum, p) => sum + Number(p.stake_amount_ton), 0);
 
@@ -409,7 +420,10 @@ export async function settleTodayChallenge(challengeDate?: string) {
   `;
 
   const winners = participants.filter((item) => item.status === "passed");
-  const losers = participants.filter((item) => item.status !== "passed");
+  // sleep_locked는 아직 기상 창이 열릴 수 있는 유저 → settle 대상에서 제외
+  const losers = participants.filter(
+    (item) => item.status !== "passed" && item.status !== "sleep_locked"
+  );
   const failedStakeTon = losers.reduce((sum, item) => sum + Number(item.stake_amount_ton), 0);
   const totalSuccessStakeTon = winners.reduce((sum, item) => sum + Number(item.stake_amount_ton), 0);
   const payout = calculatePoolPayout({
