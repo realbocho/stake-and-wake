@@ -105,14 +105,13 @@ const DURATION_OPTIONS = [
 export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [stakeAmount, setStakeAmount] = useState("3");
   const [wakeTime, setWakeTime] = useState("05:30");
   const [durationDays, setDurationDays] = useState(7);
   const [inviteCode, setInviteCode] = useState("");
   const [groupInviteCode, setGroupInviteCode] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [popupMessage, setPopupMessage] = useState<string | null>(null);
   const walletAddress = useTonAddress();
 
   const authenticated = Boolean(data?.user);
@@ -135,7 +134,7 @@ export function DashboardShell() {
   useEffect(() => {
     refresh().catch((cause: unknown) => {
       const message = cause instanceof Error ? cause.message : "Failed to load";
-      setError(message);
+      setPopupMessage(message);
     });
   }, [refresh]);
 
@@ -159,7 +158,7 @@ export function DashboardShell() {
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Telegram login failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   }, [authenticated, inviteCode, refresh]);
@@ -192,14 +191,14 @@ export function DashboardShell() {
       .then(refresh)
       .catch((cause: unknown) => {
         const message = cause instanceof Error ? cause.message : "Wallet bind failed";
-        setError(message);
+        setPopupMessage(message);
       });
   }, [walletAddress, authenticated, data?.user?.walletAddress, refresh]);
 
   const submitStake = () => {
     startTransition(() => {
       if (!walletAddress) {
-        setError("Connect your TON wallet before staking.");
+        setPopupMessage("Connect your TON wallet before staking.");
         return Promise.resolve();
       }
 
@@ -213,7 +212,7 @@ export function DashboardShell() {
         })
       })
         .then(async (intent) => {
-          setStatusMessage("Confirm the transaction in your wallet.");
+          setPopupMessage("Confirm the transaction in your wallet.");
           const result = await tonConnectUI.sendTransaction({
             validUntil: intent.validUntil,
             messages: [
@@ -236,12 +235,12 @@ export function DashboardShell() {
             })
           });
 
-          setStatusMessage(`Challenge started! ${durationDays}-day commitment locked in.`);
+          setPopupMessage(`Challenge started! ${durationDays}-day commitment locked in.`);
           await refresh();
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Stake failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -249,13 +248,13 @@ export function DashboardShell() {
   const withdraw = () => {
     startTransition(() => {
       if (!walletAddress) {
-        setError("Please connect your wallet before withdrawing.");
+        setPopupMessage("Please connect your wallet before withdrawing.");
         return Promise.resolve();
       }
 
       return getJson<WithdrawIntent>("/api/withdraw", { method: "POST" })
         .then(async (intent) => {
-          setStatusMessage(`Withdrawing ${intent.withdrawableTon} TON... Please approve in your wallet.`);
+          setPopupMessage(`Withdrawing ${intent.withdrawableTon} TON... Please approve in your wallet.`);
           await tonConnectUI.sendTransaction({
             validUntil: intent.validUntil,
             messages: [
@@ -266,12 +265,12 @@ export function DashboardShell() {
               }
             ]
           });
-          setStatusMessage("Withdrawal complete! Check your wallet.");
+          setPopupMessage("Withdrawal complete! Check your wallet.");
           await refresh();
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Withdrawal failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -286,7 +285,7 @@ export function DashboardShell() {
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Sleep mode failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -306,7 +305,7 @@ export function DashboardShell() {
       const msg = nowMins < windowStart
         ? `Check-in is not available yet. Your wake time is ${target} — come back between ${fmt(windowStart)} and ${fmt(windowEnd)}.`
         : `Check-in window has already closed. Your wake time was ${target} (${fmt(windowStart)}\u2013${fmt(windowEnd)}). See you tomorrow!`;
-      setError(msg);
+      setPopupMessage(msg);
       return;
     }
 
@@ -323,7 +322,7 @@ export function DashboardShell() {
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Check-in failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -340,7 +339,7 @@ export function DashboardShell() {
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Wallet bind failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -352,12 +351,12 @@ export function DashboardShell() {
         body: JSON.stringify({ inviteCode: groupInviteCode })
       })
         .then(() => {
-          setStatusMessage("Group joined successfully.");
+          setPopupMessage("Group joined successfully.");
           return refresh();
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Group join failed";
-          setError(message);
+          setPopupMessage(message);
         });
     });
   };
@@ -387,10 +386,6 @@ export function DashboardShell() {
                 identity and create your account automatically.
               </div>
             ) : null}
-            {statusMessage ? (
-              <div className="alert success">{statusMessage}</div>
-            ) : null}
-            {error ? <div className="alert">{error}</div> : null}
           </div>
 
           {/* Wallet + clock panel */}
@@ -763,6 +758,50 @@ export function DashboardShell() {
           />
         </div>
       </section>
+      {/* ── TIME GUARD POPUP ── */}
+      {popupMessage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1.5rem",
+          }}
+          onClick={() => setPopupMessage(null)}
+        >
+          <div
+            style={{
+              background: "var(--panel-bg, #1a1a2e)",
+              border: "1px solid var(--border, #333)",
+              borderRadius: "16px",
+              padding: "2rem",
+              maxWidth: "360px",
+              width: "100%",
+              textAlign: "center",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>
+              {popupMessage?.includes("complete") || popupMessage?.includes("started") || popupMessage?.includes("joined") || popupMessage?.includes("Withdraw")
+                ? "✅" : popupMessage?.includes("not available") || popupMessage?.includes("closed")
+                ? "⏰" : "⚠️"}
+            </div>
+            <p style={{ margin: "0 0 1.5rem", lineHeight: 1.6 }}>{popupMessage}</p>
+            <button
+              className="button accent"
+              style={{ width: "100%" }}
+              onClick={() => setPopupMessage(null)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
