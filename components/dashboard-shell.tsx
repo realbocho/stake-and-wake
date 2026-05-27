@@ -95,6 +95,9 @@ const WAKE_TIME_OPTIONS = [
   { value: "07:00", label: "7:00 AM" },
 ];
 
+// Default duration for the challenge
+const DEFAULT_DURATION_DAYS = 7;
+
 export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
@@ -200,6 +203,7 @@ export function DashboardShell() {
         body: JSON.stringify({
           stakeAmountTon: Number(stakeAmount),
           wakeTime,
+          durationDays: DEFAULT_DURATION_DAYS,
           walletAddress
         })
       })
@@ -222,6 +226,7 @@ export function DashboardShell() {
               intentId: intent.id,
               stakeAmountTon: Number(stakeAmount),
               wakeTime,
+              durationDays: DEFAULT_DURATION_DAYS,
               boc: result.boc
             })
           });
