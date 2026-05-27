@@ -281,7 +281,10 @@ export function DashboardShell() {
         method: "POST",
         body: JSON.stringify({ deviceId: getDeviceFingerprint() })
       })
-        .then(refresh)
+        .then(() => {
+          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.");
+          return refresh();
+        })
         .catch((cause: unknown) => {
           const message =
             cause instanceof Error ? cause.message : "Sleep mode failed";
@@ -789,7 +792,8 @@ export function DashboardShell() {
           >
             <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>
               {popupMessage?.includes("complete") || popupMessage?.includes("started") || popupMessage?.includes("joined") || popupMessage?.includes("Withdraw")
-                ? "✅" : popupMessage?.includes("not available") || popupMessage?.includes("closed")
+                ? "✅" : popupMessage?.includes("Good night")
+                ? "🌙" : popupMessage?.includes("not available") || popupMessage?.includes("closed")
                 ? "⏰" : "⚠️"}
             </div>
             <p style={{ margin: "0 0 1.5rem", lineHeight: 1.6, color: "#ffffff", fontSize: "0.95rem" }}>{popupMessage}</p>
