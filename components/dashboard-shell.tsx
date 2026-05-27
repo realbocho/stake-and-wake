@@ -168,12 +168,11 @@ export function DashboardShell() {
     if (!authenticated) return;
 
     const interval = window.setInterval(() => {
-      const hidden = document.visibilityState !== "visible";
       void fetch("/api/challenges/activity", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hidden,
+          hidden: false,
           timestamp: new Date().toISOString()
         })
       });
