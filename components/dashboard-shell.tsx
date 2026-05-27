@@ -95,20 +95,12 @@ const WAKE_TIME_OPTIONS = [
   { value: "07:00", label: "7:00 AM" },
 ];
 
-const DURATION_OPTIONS = [
-  { value: 7,  label: "7 Days" },
-  { value: 14, label: "14 Days" },
-  { value: 21, label: "21 Days" },
-  { value: 30, label: "30 Days" },
-];
-
 export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [pending, startTransition] = useTransition();
   const [stakeAmount, setStakeAmount] = useState("3");
   const [wakeTime, setWakeTime] = useState("05:30");
-  const [durationDays, setDurationDays] = useState(7);
   const [inviteCode, setInviteCode] = useState("");
   const [groupInviteCode, setGroupInviteCode] = useState("");
   const [popupMessage, setPopupMessage] = useState<string | null>(null);
@@ -208,7 +200,6 @@ export function DashboardShell() {
         body: JSON.stringify({
           stakeAmountTon: Number(stakeAmount),
           wakeTime,
-          durationDays,
           walletAddress
         })
       })
@@ -231,12 +222,11 @@ export function DashboardShell() {
               intentId: intent.id,
               stakeAmountTon: Number(stakeAmount),
               wakeTime,
-              durationDays,
               boc: result.boc
             })
           });
 
-          setPopupMessage(`Challenge started! ${durationDays}-day commitment locked in.`);
+          setPopupMessage(`Challenge started! Commitment locked in.`);
           await refresh();
         })
         .catch((cause: unknown) => {
@@ -459,55 +449,34 @@ export function DashboardShell() {
               <div>
                 <div className="label">Challenge Setup</div>
                 <div className="value">
-                  {data?.challenge.title ?? "Morning Discipline Pool"}
+                  {data?.challenge.title ?? "Morning Discipline"}
                 </div>
               </div>
-              <span className="badge">
-                {(() => {
-                  const [h, m] = wakeTime.split(":").map(Number);
-                  const total = h * 60 + m;
-                  const pad = (n: number) => String(n).padStart(2, "0");
-                  const fmt = (mins: number) =>
-                    `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
-                  return `ex. ${wakeTime} → ${fmt(total - 12)}~${fmt(total + 12)}`;
-                })()}
-              </span>
             </div>
 
-            <div className="mission-grid">
+            <div className="separator" />
+
+            <div className="row" style={{ gap: "1rem" }}>
               <label className="stack">
                 <span className="label">Stake Amount (TON)</span>
                 <input
                   className="input mono"
+                  type="number"
+                  min="1"
+                  step="1"
                   value={stakeAmount}
                   onChange={(e) => setStakeAmount(e.target.value)}
-                  inputMode="decimal"
                 />
               </label>
 
               <label className="stack">
-                <span className="label">Target Wake Time</span>
+                <span className="label">Wake Time</span>
                 <select
                   className="input mono"
                   value={wakeTime}
                   onChange={(e) => setWakeTime(e.target.value)}
                 >
                   {WAKE_TIME_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="stack">
-                <span className="label">Challenge Duration</span>
-                <select
-                  className="input mono"
-                  value={durationDays}
-                  onChange={(e) => setDurationDays(Number(e.target.value))}
-                >
-                  {DURATION_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -521,7 +490,7 @@ export function DashboardShell() {
               <strong>
                 {WAKE_TIME_OPTIONS.find((o) => o.value === wakeTime)?.label}
               </strong>{" "}
-              every day for <strong>{durationDays} days</strong>. Participants
+              every day. Participants
               who miss a check-in forfeit their stake to the winners.
             </div>
 
