@@ -305,11 +305,7 @@ export function DashboardShell() {
     if (nowMins < windowStart || nowMins > windowEnd) {
       const pad = (n: number) => String(n).padStart(2, "0");
       const fmt = (mins: number) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
-      const target = data?.challenge.wakeTime ?? "??:??";
-      const msg = nowMins < windowStart
-        ? `Check-in is not available yet. Your wake time is ${target} — come back between ${fmt(windowStart)} and ${fmt(windowEnd)}.`
-        : `Check-in window has already closed. Your wake time was ${target} (${fmt(windowStart)}\u2013${fmt(windowEnd)}). See you tomorrow!`;
-      setPopupMessage(msg);
+      setPopupMessage("It's not check-in time right now. Please try again during your wake window.");
       return;
     }
 
