@@ -202,6 +202,7 @@ export function DashboardShell() {
         return Promise.resolve();
       }
 
+
       return getJson<PaymentIntentView>("/api/payments/prepare", {
         method: "POST",
         body: JSON.stringify({
@@ -552,6 +553,9 @@ export function DashboardShell() {
                 </span>
               </span>
             </button>
+            <p style={{ fontSize: "0.75rem", color: "var(--muted, #888)", margin: "-0.25rem 0 0.25rem 0.25rem" }}>
+              ⚠️ You can only stake once per day. If you stake again, the previous stake is lost and only the latest one counts.
+            </p>
 
             {/* Step 2 */}
             <button
