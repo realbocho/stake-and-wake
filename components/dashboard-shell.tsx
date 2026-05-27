@@ -412,9 +412,6 @@ export function DashboardShell() {
               <span className="badge">{data?.challenge.status ?? "loading"}</span>
             </div>
             <div className="big-clock mono">{data ? data.challenge.wakeTime : "--:--"}</div>
-            <p className="muted">
-              Daily fee {data ? formatTon(data.dailyFeeTon) : "--"}
-            </p>
             {data?.user?.timezone ? (
               <p className="muted">Your timezone: {data.user.timezone}</p>
             ) : null}
