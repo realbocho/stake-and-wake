@@ -143,7 +143,6 @@ export function DashboardShell() {
     const initData = getTelegramInitData();
     if (!initData || authenticated) return;
 
-    // Auto-detect device timezone — saved to server only on first login
     const timezone = getTimezone();
 
     startTransition(() => {
@@ -183,7 +182,6 @@ export function DashboardShell() {
     return () => window.clearInterval(interval);
   }, [authenticated]);
 
-  // Auto-bind wallet when connected
   useEffect(() => {
     if (!authenticated || !walletAddress) return;
     if (data?.user?.walletAddress === walletAddress) return;
@@ -216,7 +214,7 @@ export function DashboardShell() {
         })
       })
         .then(async (intent) => {
-          setStatusMessage("Confirm the stake transaction in your wallet.");
+          setStatusMessage("Confirm the transaction in your wallet.");
           const result = await tonConnectUI.sendTransaction({
             validUntil: intent.validUntil,
             messages: [
@@ -347,8 +345,14 @@ export function DashboardShell() {
     });
   };
 
+  // Compute active pool display
+  const activePool = data
+    ? data.challenge.poolTon + data.challenge.operatorInjectionTon
+    : null;
+
   return (
     <main className="page-shell">
+      {/* ── HERO ── */}
       <section className="hero">
         <div className="hero-grid">
           <div className="stack">
@@ -359,108 +363,103 @@ export function DashboardShell() {
               verification between 5:00 AM and 7:00 AM every day to split
               the losers&apos; pool at the end of your challenge period.
             </p>
-            <div className="row">
-              <button className="button accent" onClick={submitStake} disabled={pending || !authenticated}>
-                Join Challenge
-              </button>
-              <button className="button ghost" onClick={enableSleepMode} disabled={pending || !authenticated}>
-                Enable Sleep Lock
-              </button>
-              <button className="button primary" onClick={withdraw} disabled={pending || !canWithdraw}>
-                Withdraw {canWithdraw ? formatTon(data?.user?.netProfitTon ?? 0) : ""}
-              </button>
-              <button
-                className="button ghost"
-                disabled
-                title="Friend invite feature is under development"
-                style={{
-                  opacity: 0.45,
-                  cursor: "not-allowed",
-                  position: "relative",
-                  borderStyle: "dashed",
-                }}
-              >
-                🔗 Invite Friends
-                <span style={{
-                  position: "absolute",
-                  top: "-8px",
-                  right: "-4px",
-                  background: "var(--gold)",
-                  color: "#18120b",
-                  fontSize: "9px",
-                  fontWeight: 700,
-                  padding: "2px 6px",
-                  borderRadius: "999px",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                }}>Soon</span>
-              </button>
-            </div>
+
             {!authenticated ? (
               <div className="alert">
-                Open this inside Telegram so the server can verify your initData
-                and create your account automatically.
+                Open this inside Telegram so the server can verify your
+                identity and create your account automatically.
               </div>
             ) : null}
-            {statusMessage ? <div className="alert success">{statusMessage}</div> : null}
+            {statusMessage ? (
+              <div className="alert success">{statusMessage}</div>
+            ) : null}
             {error ? <div className="alert">{error}</div> : null}
           </div>
 
+          {/* Wallet + clock panel */}
           <div className="panel dark stack">
             <div className="row space-between">
               <span className="label">Wake Window</span>
               <span className="badge">{data?.challenge.status ?? "loading"}</span>
             </div>
-            <div className="big-clock mono">{data ? data.challenge.wakeTime : "--:--"}</div>
+            <div className="big-clock mono">
+              {data ? data.challenge.wakeTime : "--:--"}
+            </div>
             {data?.user?.timezone ? (
               <p className="muted">Your timezone: {data.user.timezone}</p>
             ) : null}
             <div className="separator" />
             <TonConnectButton />
-            <button className="button primary" onClick={bindWallet} disabled={!canBindWallet || pending}>
+            <button
+              className="button primary"
+              onClick={bindWallet}
+              disabled={!canBindWallet || pending}
+            >
               Bind Connected Wallet
             </button>
             <p className="muted mono">
-              {(data?.user?.walletAddress ?? walletAddress) || "Wallet not connected"}
+              {(data?.user?.walletAddress ?? walletAddress) ||
+                "Wallet not connected"}
             </p>
           </div>
         </div>
 
+        {/* KPI row */}
         <div className="stats-grid">
           <div className="panel kpi">
-            <div className="label">Net Profit</div>
+            <div className="label">My Net Profit</div>
             <div className="value mono">
               {data ? formatTon(data.user?.netProfitTon ?? 0) : "--"}
             </div>
-            <div className="muted">Account-bound to Telegram ID and TON wallet.</div>
+            <div className="muted">
+              Tied to your Telegram ID and TON wallet.
+            </div>
           </div>
+
           <div className="panel kpi">
-            <div className="label">Success Streak</div>
-            <div className="value mono">{data?.user?.successStreak ?? 0} days</div>
-            <div className="muted">Bronze, Silver, Gold, and Diamond badge ladder.</div>
+            <div className="label">Win Streak</div>
+            <div className="value mono">
+              {data?.user?.successStreak ?? 0} days
+            </div>
+            <div className="muted">
+              Bronze → Silver → Gold → Diamond badge ladder.
+            </div>
           </div>
+
+          {/* ── ACTIVE POOL — redesigned copy ── */}
           <div className="panel kpi">
-            <div className="label">Active Pool</div>
-            <div className="value mono">{data ? formatTon(data.challenge.poolTon + data.challenge.operatorInjectionTon) : "--"}</div>
-            <div className="muted">Failed stakes minus platform fee split among winners.</div>
+            <div className="label">Active Prize Pool 🏆</div>
+            <div className="value mono">
+              {activePool !== null ? formatTon(activePool) : "--"}
+            </div>
+            <div className="muted">
+              Join now to claim a share — the more you stake, the bigger your
+              cut of the prize pool!
+            </div>
           </div>
         </div>
       </section>
 
+      {/* ── MAIN CONTENT ── */}
       <section className="content-grid">
+
+        {/* ── LEFT: Challenge Setup + ALL ACTION BUTTONS ── */}
         <div className="stack">
           <div className="panel stack">
             <div className="row space-between">
               <div>
                 <div className="label">Challenge Setup</div>
-                <div className="value">{data?.challenge.title ?? "Morning Discipline Pool"}</div>
+                <div className="value">
+                  {data?.challenge.title ?? "Morning Discipline Pool"}
+                </div>
               </div>
               <span className="badge">
                 {(() => {
                   const [h, m] = wakeTime.split(":").map(Number);
                   const total = h * 60 + m;
                   const pad = (n: number) => String(n).padStart(2, "0");
-                  const fmt = (mins: number) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+                  const fmt = (mins: number) =>
+                    `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
                   return `ex. ${wakeTime} → ${fmt(total - 12)}~${fmt(total + 12)}`;
                 })()}
               </span>
@@ -472,7 +471,7 @@ export function DashboardShell() {
                 <input
                   className="input mono"
                   value={stakeAmount}
-                  onChange={(event) => setStakeAmount(event.target.value)}
+                  onChange={(e) => setStakeAmount(e.target.value)}
                   inputMode="decimal"
                 />
               </label>
@@ -482,7 +481,7 @@ export function DashboardShell() {
                 <select
                   className="input mono"
                   value={wakeTime}
-                  onChange={(event) => setWakeTime(event.target.value)}
+                  onChange={(e) => setWakeTime(e.target.value)}
                 >
                   {WAKE_TIME_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -497,7 +496,7 @@ export function DashboardShell() {
                 <select
                   className="input mono"
                   value={durationDays}
-                  onChange={(event) => setDurationDays(Number(event.target.value))}
+                  onChange={(e) => setDurationDays(Number(e.target.value))}
                 >
                   {DURATION_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -509,29 +508,147 @@ export function DashboardShell() {
             </div>
 
             <div className="alert info">
-              You are committing to wake up at <strong>{WAKE_TIME_OPTIONS.find(o => o.value === wakeTime)?.label}</strong> every
-              day for <strong>{durationDays} days</strong>. Participants who fail will forfeit
-              their stake to the winners at the end of the period.
+              You are committing to wake up at{" "}
+              <strong>
+                {WAKE_TIME_OPTIONS.find((o) => o.value === wakeTime)?.label}
+              </strong>{" "}
+              every day for <strong>{durationDays} days</strong>. Participants
+              who miss a check-in forfeit their stake to the winners.
             </div>
 
-            <div className="row">
-              <button className="button accent" onClick={submitStake} disabled={pending || !authenticated}>
-                Pay and Start Challenge
-              </button>
-              <button className="button primary" onClick={completeCheckIn} disabled={pending || !authenticated}>
-                Simulate Wake Check-In
-              </button>
+            {/* ── ALL ACTION BUTTONS in one place ── */}
+            <div className="separator" />
+            <div className="label" style={{ marginBottom: "0.25rem" }}>
+              Actions
             </div>
+
+            {/* Step 1 */}
+            <button
+              className="button accent"
+              style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem" }}
+              onClick={submitStake}
+              disabled={pending || !authenticated}
+            >
+              <span style={{ fontSize: "1.1rem" }}>💰</span>
+              <span>
+                <strong>Deposit &amp; Start</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
+                  Lock in your stake and begin the challenge
+                </span>
+              </span>
+            </button>
+
+            {/* Step 2 */}
+            <button
+              className="button primary"
+              style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem" }}
+              onClick={enableSleepMode}
+              disabled={pending || !authenticated}
+            >
+              <span style={{ fontSize: "1.1rem" }}>🌙</span>
+              <span>
+                <strong>Prepare for Sleep</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
+                  Must tap this every night before you sleep — required!
+                </span>
+              </span>
+            </button>
+
+            {/* Step 3 */}
+            <button
+              className="button primary"
+              style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem" }}
+              onClick={completeCheckIn}
+              disabled={pending || !authenticated}
+            >
+              <span style={{ fontSize: "1.1rem" }}>☀️</span>
+              <span>
+                <strong>Morning Check-In</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
+                  Must tap this immediately after waking up — your wake is only confirmed once you check in!
+                </span>
+              </span>
+            </button>
+
+            {/* Withdraw — only shown when there's profit */}
+            {canWithdraw && (
+              <>
+                <div className="separator" />
+                <button
+                  className="button ghost"
+                  style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem" }}
+                  onClick={withdraw}
+                  disabled={pending}
+                >
+                  <span style={{ fontSize: "1.1rem" }}>🏦</span>
+                  <span>
+                    <strong>Withdraw Winnings</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
+                      {formatTon(data?.user?.netProfitTon ?? 0)} available to
+                      withdraw
+                    </span>
+                  </span>
+                </button>
+              </>
+            )}
+
+            {/* Invite Friends — coming soon */}
+            <button
+              className="button ghost"
+              disabled
+              title="Friend invite feature is under development"
+              style={{
+                width: "100%",
+                justifyContent: "flex-start",
+                gap: "0.6rem",
+                opacity: 0.45,
+                cursor: "not-allowed",
+                borderStyle: "dashed",
+                position: "relative",
+              }}
+            >
+              <span style={{ fontSize: "1.1rem" }}>🔗</span>
+              <span>
+                <strong>Invite Friends</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
+                  Earn referral bonuses when friends join
+                </span>
+              </span>
+              <span
+                style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "12px",
+                  background: "var(--gold)",
+                  color: "#18120b",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  padding: "2px 6px",
+                  borderRadius: "999px",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Soon
+              </span>
+            </button>
           </div>
         </div>
 
+        {/* ── RIGHT: Leaderboard + Identity + Group ── */}
         <div className="stack">
-          <div className="panel stack coming-soon-panel" style={{ position: "relative", overflow: "hidden" }}>
+          {/* Group join — coming soon */}
+          <div
+            className="panel stack coming-soon-panel"
+            style={{ position: "relative", overflow: "hidden" }}
+          >
             <div className="coming-soon-overlay">
               <span className="coming-soon-badge">🚧 Under Development</span>
               <p className="coming-soon-text">Team join feature coming soon</p>
             </div>
-            <div className="label" style={{ opacity: 0.4 }}>Join a Group</div>
+            <div className="label" style={{ opacity: 0.4 }}>
+              Join a Group
+            </div>
             <input
               className="input mono"
               placeholder="Group invite code"
@@ -540,11 +657,16 @@ export function DashboardShell() {
               disabled
               style={{ opacity: 0.4 }}
             />
-            <button className="button ghost" disabled style={{ opacity: 0.4, cursor: "not-allowed" }}>
+            <button
+              className="button ghost"
+              disabled
+              style={{ opacity: 0.4, cursor: "not-allowed" }}
+            >
               Join Group
             </button>
           </div>
 
+          {/* Leaderboard */}
           <div className="panel stack">
             <div className="label">Leaderboard</div>
             <div className="list">
@@ -564,12 +686,15 @@ export function DashboardShell() {
             </div>
           </div>
 
+          {/* Identity */}
           <div className="panel stack">
-            <div className="label">Identity</div>
+            <div className="label">Your Identity</div>
             <div className="list">
               <div className="list-item">
                 <span>Telegram User</span>
-                <span className="mono">{data?.user?.telegramId ?? "Not authenticated"}</span>
+                <span className="mono">
+                  {data?.user?.telegramId ?? "Not authenticated"}
+                </span>
               </div>
               <div className="list-item">
                 <span>NFT Tier</span>
@@ -577,29 +702,47 @@ export function DashboardShell() {
               </div>
               <div className="list-item">
                 <span>Group Size</span>
-                <span className="mono">{data?.user?.groupMemberCount ?? 0} members</span>
+                <span className="mono">
+                  {data?.user?.groupMemberCount ?? 0} members
+                </span>
               </div>
               <div className="list-item">
                 <span>Timezone</span>
-                <span className="mono">{data?.user?.timezone ?? "Not set"}</span>
+                <span className="mono">
+                  {data?.user?.timezone ?? "Not set"}
+                </span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="content-grid" style={{ marginTop: "1.5rem" }}>
+      {/* ── GUIDE ── */}
+      <section
+        className="content-grid"
+        style={{ marginTop: "1.5rem" }}
+      >
         <div className="panel stack" style={{ gridColumn: "1 / -1" }}>
           <div className="row space-between">
             <div className="label">Guide</div>
-            <a className="button ghost" href="/guide" target="_blank" rel="noreferrer">
+            <a
+              className="button ghost"
+              href="/guide"
+              target="_blank"
+              rel="noreferrer"
+            >
               Open Full Guide
             </a>
           </div>
           <iframe
             title="Stake & Wake Guide"
             src="/guide"
-            style={{ width: "100%", minHeight: "560px", border: "none", borderRadius: "12px" }}
+            style={{
+              width: "100%",
+              minHeight: "560px",
+              border: "none",
+              borderRadius: "12px",
+            }}
           />
         </div>
       </section>
