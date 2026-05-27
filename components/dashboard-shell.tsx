@@ -775,14 +775,15 @@ export function DashboardShell() {
         >
           <div
             style={{
-              background: "var(--panel-bg, #1a1a2e)",
-              border: "1px solid var(--border, #333)",
+              background: "#1e1e2e",
+              border: "1px solid #444",
               borderRadius: "16px",
               padding: "2rem",
               maxWidth: "360px",
               width: "100%",
               textAlign: "center",
-              boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+              color: "#ffffff",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -791,7 +792,7 @@ export function DashboardShell() {
                 ? "✅" : popupMessage?.includes("not available") || popupMessage?.includes("closed")
                 ? "⏰" : "⚠️"}
             </div>
-            <p style={{ margin: "0 0 1.5rem", lineHeight: 1.6 }}>{popupMessage}</p>
+            <p style={{ margin: "0 0 1.5rem", lineHeight: 1.6, color: "#ffffff", fontSize: "0.95rem" }}>{popupMessage}</p>
             <button
               className="button accent"
               style={{ width: "100%" }}
