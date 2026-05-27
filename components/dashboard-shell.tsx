@@ -292,6 +292,24 @@ export function DashboardShell() {
   };
 
   const completeCheckIn = () => {
+    // Guard: only allow check-in within the ±12 min wake window
+    const now = new Date();
+    const [wh, wm] = (data?.challenge.wakeTime ?? "00:00").split(":").map(Number);
+    const windowStart = wh * 60 + wm - 12;
+    const windowEnd   = wh * 60 + wm + 12;
+    const nowMins     = now.getHours() * 60 + now.getMinutes();
+
+    if (nowMins < windowStart || nowMins > windowEnd) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const fmt = (mins: number) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+      const target = data?.challenge.wakeTime ?? "??:??";
+      const msg = nowMins < windowStart
+        ? `Check-in is not available yet. Your wake time is ${target} — come back between ${fmt(windowStart)} and ${fmt(windowEnd)}.`
+        : `Check-in window has already closed. Your wake time was ${target} (${fmt(windowStart)}\u2013${fmt(windowEnd)}). See you tomorrow!`;
+      setError(msg);
+      return;
+    }
+
     startTransition(() => {
       getJson("/api/challenges/check-in", {
         method: "POST",
