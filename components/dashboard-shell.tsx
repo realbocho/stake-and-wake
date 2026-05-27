@@ -295,18 +295,26 @@ export function DashboardShell() {
   };
 
   const completeCheckIn = () => {
-    // Guard: only allow check-in within the ±12 min wake window
+    // 서버의 randomCheckInFrom / randomCheckInTo 창 기준으로 검증
+    // (프론트 wakeTime ± 12분 방식은 서버 창과 불일치 가능성 있음)
     const now = new Date();
-    const [wh, wm] = (data?.challenge.wakeTime ?? "00:00").split(":").map(Number);
-    const windowStart = wh * 60 + wm - 12;
-    const windowEnd   = wh * 60 + wm + 12;
-    const nowMins     = now.getHours() * 60 + now.getMinutes();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
 
-    if (nowMins < windowStart || nowMins > windowEnd) {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const fmt = (mins: number) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
-      setPopupMessage("It's not check-in time right now. Please try again during your wake window.");
-      return;
+    const fromStr = data?.challenge.randomCheckInFrom ?? "";
+    const toStr = data?.challenge.randomCheckInTo ?? "";
+
+    if (fromStr && toStr) {
+      const [fh, fm] = fromStr.split(":").map(Number);
+      const [th, tm] = toStr.split(":").map(Number);
+      const fromMins = fh * 60 + fm;
+      const toMins = th * 60 + tm;
+
+      if (nowMins < fromMins || nowMins > toMins) {
+        setPopupMessage(
+          `Check-in is only available between ${fromStr} and ${toStr}. Please try again during your wake window.`
+        );
+        return;
+      }
     }
 
     startTransition(() => {
@@ -428,17 +436,6 @@ export function DashboardShell() {
             </div>
           </div>
 
-          <div className="panel kpi">
-            <div className="label">Win Streak</div>
-            <div className="value mono">
-              {data?.user?.successStreak ?? 0} days
-            </div>
-            <div className="muted">
-              Bronze → Silver → Gold → Diamond badge ladder.
-            </div>
-          </div>
-
-          {/* ── ACTIVE POOL — redesigned copy ── */}
           <div className="panel kpi">
             <div className="label">Active Prize Pool 🏆</div>
             <div className="value mono">
