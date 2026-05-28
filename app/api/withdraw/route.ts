@@ -6,15 +6,14 @@ import { env } from "@/lib/env";
 import { toNanoTon, encodeBase64 } from "@/lib/ton";
 import { beginCell } from "@ton/core";
 
-// Claim opcode — crc32("Claim") | 0x80000000
-const CLAIM_OPCODE = 0xe6a8f123;
+const CLAIM_OPCODE = 1504906600; // 0x59a1c3e8
 
 function buildClaimPayload(roundId: number): string {
   return encodeBase64(
     beginCell()
-      .storeUint(CLAIM_OPCODE, 32) // opcode
-      .storeUint(0, 64)            // queryId
-      .storeUint(roundId, 32)      // roundId
+      .storeUint(CLAIM_OPCODE, 32)
+      .storeUint(0, 64)
+      .storeUint(roundId, 32)
       .endCell()
       .toBoc()
   );
