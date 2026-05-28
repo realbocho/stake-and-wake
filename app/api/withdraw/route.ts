@@ -7,7 +7,7 @@ import { toNanoTon, encodeBase64 } from "@/lib/ton";
 import { beginCell } from "@ton/core";
 
 // Claim opcode — confirmed from ABI: 1504906600 = 0x59A1C3E8
-const CLAIM_OPCODE = 0x59A1C3E8;
+const CLAIM_OPCODE = 0x66A8F123;
 
 function buildClaimPayload(roundId: number): string {
   return encodeBase64(
