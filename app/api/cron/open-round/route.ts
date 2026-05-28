@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { TonClient, WalletContractV4, internal, toNano, Address, beginCell } from "@ton/ton";
+import { TonClient, WalletContractV5R1, internal, toNano, Address, beginCell } from "@ton/ton";
 import { mnemonicToPrivateKey } from "@ton/crypto";
 import { env } from "@/lib/env";
 import { getSql } from "@/lib/db";
@@ -87,12 +87,11 @@ export async function GET(request: Request) {
    }
 
    const keyPair = await mnemonicToPrivateKey(mnemonic);
-   const wallet = WalletContractV4.create({
+   const wallet = WalletContractV5R1.create({
      publicKey: keyPair.publicKey,
      workchain: 0,
    });
 
-   // ★ 이 주소가 Tonkeeper owner 주소와 같아야 합니다
    const walletAddress = wallet.address.toString({ bounceable: false });
    console.log(`[cron/open-round] cron wallet address: ${walletAddress}`);
    console.log(`[cron/open-round] contract address: ${env.stakeVaultAddress}`);
