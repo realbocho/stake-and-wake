@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       id: intentId,
       challengeId: challenge.id,
       amountTon: body.stakeAmountTon,
-      amountNano: toNanoTon(body.stakeAmountTon).toString(),
+      amountNano: (toNanoTon(body.stakeAmountTon) + toNanoTon(0.05)).toString(), // 가스비 0.05 TON 추가
       to: env.stakeVaultAddress,
       payload,
       validUntil: Math.floor(Date.now() / 1000) + 300,
