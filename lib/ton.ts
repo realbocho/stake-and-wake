@@ -25,7 +25,7 @@ export function buildStakePayload(input: {
 
   return encodeBase64(
     beginCell()
-      .storeUint(0xaf08f361, 32)        // Stake opcode (crc32("Stake") | 0x80000000)
+      .storeUint(1651556798, 32)        // Stake opcode (0x628f45be)
       .storeUint(input.roundId, 32)     // roundId (uint32)
       .storeUint(telegramIdHashBig, 256) // telegramIdHash (uint256)
       .endCell()
