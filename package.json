@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@ton/core": "^0.62.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^15.4.0",
     "@tonconnect/ui-react": "^2.0.9",
     "jose": "^5.9.6",
     "next": "^16.0.1",
@@ -22,10 +24,10 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@tact-lang/compiler": "^1.6.13",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@tact-lang/compiler": "^1.6.13",
     "typescript": "^5.7.3"
   }
 }
