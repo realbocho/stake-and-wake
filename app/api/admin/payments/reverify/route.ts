@@ -6,7 +6,6 @@ import { stakeForTonight } from "@/lib/repositories/challenges";
 import { z } from "zod";
 
 // GET /api/admin/payments/reverify
-// Lists all payment_intents with unverified or stuck status for admin review.
 export async function GET(request: Request) {
   try {
     assertAdmin(request);
@@ -45,12 +44,11 @@ export async function GET(request: Request) {
 }
 
 // POST /api/admin/payments/reverify
-// Re-runs on-chain verification for a specific payment_intent or all unverified ones.
 export async function POST(request: Request) {
   try {
     assertAdmin(request);
     const body = z.object({
-      intentId: z.string().uuid().optional(), // omit to reverify all
+      intentId: z.string().uuid().optional(),
       challengeVaultAddress: z.string().min(10),
     }).parse(await request.json());
 
@@ -63,12 +61,16 @@ export async function POST(request: Request) {
       amount_ton: number;
       wallet_address: string;
       status: string;
-      payload_base64: string;
       reverify_attempts: number;
+      telegram_id: string;
+      on_chain_round_id: number;
     }[]>`
       select p.id, p.user_id, p.challenge_id, p.amount_ton,
-             p.wallet_address, p.status, p.payload_base64, p.reverify_attempts
+             p.wallet_address, p.status, p.reverify_attempts,
+             u.telegram_id, c.on_chain_round_id
       from payment_intent p
+      join app_user u on u.id = p.user_id
+      join challenge c on c.id = p.challenge_id
       where (${body.intentId ?? null}::uuid is null or p.id = ${body.intentId ?? null}::uuid)
         and p.status in ('prepared', 'unverified')
       order by p.created_at asc
@@ -78,7 +80,6 @@ export async function POST(request: Request) {
     const results: { intentId: string; result: string }[] = [];
 
     for (const intent of rows) {
-      // Increment attempt counter
       await sql`
         update payment_intent
         set reverify_attempts = reverify_attempts + 1,
@@ -90,13 +91,11 @@ export async function POST(request: Request) {
         fromWallet: intent.wallet_address,
         toVault: body.challengeVaultAddress,
         expectedNano: BigInt(Math.round(Number(intent.amount_ton) * 1_000_000_000)),
-        challengeId: intent.challenge_id,
-        telegramId: "", // not used for re-verification matching
-        wakeTime: "",
+        roundId: intent.on_chain_round_id,
+        telegramId: intent.telegram_id,
       });
 
       if (txHash && !txHash.startsWith("unverified")) {
-        // Confirm intent and activate stake
         await sql.begin(async (tx) => {
           await tx`
             update payment_intent
@@ -106,7 +105,6 @@ export async function POST(request: Request) {
             where id = ${intent.id}
           `;
 
-          // Ensure participation record exists
           await stakeForTonight({
             userId: intent.user_id,
             stakeAmountTon: Number(intent.amount_ton),
