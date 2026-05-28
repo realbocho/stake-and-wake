@@ -13,6 +13,7 @@ type ChallengeRow = {
   random_check_in_to: string;
   pool_ton: number;
   operator_injection_ton: number;
+  on_chain_round_id: number;
 };
 
 function mapChallenge(row: ChallengeRow): ChallengeView {
@@ -24,7 +25,8 @@ function mapChallenge(row: ChallengeRow): ChallengeView {
     randomCheckInFrom: row.random_check_in_from,
     randomCheckInTo: row.random_check_in_to,
     poolTon: Number(row.pool_ton),
-    operatorInjectionTon: Number(row.operator_injection_ton ?? 0)
+    operatorInjectionTon: Number(row.operator_injection_ton ?? 0),
+    onChainRoundId: Number(row.on_chain_round_id ?? 0)
   };
 }
 
@@ -81,7 +83,8 @@ export async function getActiveChallengeForUser(userId: string) {
   const sql = getSql();
   const [row] = await sql<ChallengeRow[]>`
     select c.id, c.title, p.status, p.wake_time, p.random_check_in_from,
-           p.random_check_in_to, c.pool_ton, c.operator_injection_ton
+           p.random_check_in_to, c.pool_ton, c.operator_injection_ton,
+           c.on_chain_round_id
     from challenge_participation p
     join challenge c on c.id = p.challenge_id
     where p.user_id = ${userId}
@@ -97,21 +100,25 @@ export async function getOrCreateTonightChallenge() {
     select id, title, 'open'::text as status, default_wake_time as wake_time,
            default_random_from as random_check_in_from,
            default_random_to as random_check_in_to,
-           pool_ton, operator_injection_ton
+           pool_ton, operator_injection_ton, on_chain_round_id
     from challenge
     where challenge_date = current_date
     limit 1
   `;
   if (existing) return mapChallenge(existing);
 
+  // Derive a stable uint32 roundId from today's date: YYYYMMDD fits in uint32
+  const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const onChainRoundId = parseInt(todayStr, 10); // e.g. 20260528
+
   const id = randomUUID();
   await sql`
     insert into challenge (
       id, challenge_date, title, default_wake_time, default_random_from, default_random_to,
-      min_stake_ton, daily_fee_ton, pool_ton, platform_fee_rate
+      min_stake_ton, daily_fee_ton, pool_ton, platform_fee_rate, on_chain_round_id
     ) values (
       ${id}, current_date, 'Morning Discipline Pool', '05:30', '05:18', '05:42',
-      0.5, ${env.dailyFeeTon}, 0, ${env.platformFeeRate}
+      0.5, ${env.dailyFeeTon}, 0, ${env.platformFeeRate}, ${onChainRoundId}
     )
   `;
   return {
@@ -122,7 +129,8 @@ export async function getOrCreateTonightChallenge() {
     randomCheckInFrom: "05:18",
     randomCheckInTo: "05:42",
     poolTon: 0,
-    operatorInjectionTon: 0
+    operatorInjectionTon: 0,
+    onChainRoundId
   } satisfies ChallengeView;
 }
 
@@ -302,8 +310,6 @@ export async function settleByTimezone() {
   const toSettle = participants.filter((p) => {
     const tz = p.user_timezone ?? "UTC";
     const localMins = getLocalMinutes(tz);
-    // 현지 시각 07:00(420분) 이후에만 settle 대상으로 포함
-    // sleep_locked 상태는 아직 기상 창이 열리지 않았을 수 있으므로 제외
     if (p.status === "sleep_locked") return false;
     return localMins >= 7 * 60;
   });
@@ -420,7 +426,6 @@ export async function settleTodayChallenge(challengeDate?: string) {
   `;
 
   const winners = participants.filter((item) => item.status === "passed");
-  // sleep_locked는 아직 기상 창이 열릴 수 있는 유저 → settle 대상에서 제외
   const losers = participants.filter(
     (item) => item.status !== "passed" && item.status !== "sleep_locked"
   );
