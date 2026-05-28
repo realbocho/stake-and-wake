@@ -4,7 +4,7 @@ import { mnemonicToPrivateKey } from "@ton/crypto";
 import { env } from "@/lib/env";
 import { getSql } from "@/lib/db";
 
-const OPEN_ROUND_OPCODE = 0x6ef35a4e;
+const OPEN_ROUND_OPCODE = 0x620f76ad;
 
 function getTodayRoundId(): number {
   return parseInt(new Date().toISOString().slice(0, 10).replace(/-/g, ""), 10);
