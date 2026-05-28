@@ -1,7 +1,5 @@
 {
   "url": "https://stake-and-wake.vercel.app",
   "name": "Stake & Wake",
-  "iconUrl": "https://stake-and-wake.vercel.app/icon.svg",
-  "termsOfUseUrl": "https://stake-and-wake.vercel.app/terms",
-  "privacyPolicyUrl": "https://stake-and-wake.vercel.app/privacy"
+  "iconUrl": "https://stake-and-wake.vercel.app/icon.svg"
 }
