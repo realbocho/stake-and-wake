@@ -11,6 +11,7 @@ import type {
   WalletBindingPayload
 } from "@/lib/types";
 import { englishTime, formatTon } from "@/lib/utils";
+import WakeSuccessModal from "@/components/WakeSuccessModal";
 
 type DashboardPayload = {
   user: SessionUser | null;
@@ -107,6 +108,13 @@ export function DashboardShell() {
   const [inviteCode, setInviteCode] = useState("");
   const [groupInviteCode, setGroupInviteCode] = useState("");
   const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const [wakeModal, setWakeModal] = useState<{
+    isOpen: boolean;
+    rewardTon: number;
+    onChainRoundId: number | null;
+    challengeId: string | null;
+    claimPending: boolean;
+  }>({ isOpen: false, rewardTon: 0, onChainRoundId: null, challengeId: null, claimPending: false });
   const walletAddress = useTonAddress();
 
   const authenticated = Boolean(data?.user);
@@ -290,8 +298,6 @@ export function DashboardShell() {
   };
 
   const completeCheckIn = () => {
-    // 서버의 randomCheckInFrom / randomCheckInTo 창 기준으로 검증
-    // (프론트 wakeTime ± 12분 방식은 서버 창과 불일치 가능성 있음)
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
 
@@ -313,21 +319,85 @@ export function DashboardShell() {
     }
 
     startTransition(() => {
-      getJson("/api/challenges/check-in", {
-        method: "POST",
-        body: JSON.stringify({
-          challengeId: data?.challenge.id,
-          response: "42",
-          reactionMs: 16000
+      getJson<{ ok: boolean; reactionMs: number; onChainRoundId: number | null; settledRewardTon?: number }>(
+        "/api/challenges/check-in",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            challengeId: data?.challenge.id,
+            response: "42",
+            reactionMs: 16000
+          })
+        }
+      )
+        .then(async (result) => {
+          await refresh();
+          // 성공 모달 열기 — 클레임 or 포기 선택
+          setWakeModal({
+            isOpen: true,
+            rewardTon: result.settledRewardTon ?? 0,
+            onChainRoundId: result.onChainRoundId,
+            challengeId: data?.challenge.id ?? null,
+            claimPending: false,
+          });
         })
-      })
-        .then(refresh)
         .catch((cause: unknown) => {
-          const message =
-            cause instanceof Error ? cause.message : "Check-in failed";
+          const message = cause instanceof Error ? cause.message : "Check-in failed";
           setPopupMessage(message);
         });
     });
+  };
+
+  const handleClaim = async () => {
+    const { onChainRoundId, challengeId } = wakeModal;
+    if (!onChainRoundId || !challengeId) return;
+
+    setWakeModal((m) => ({ ...m, claimPending: true }));
+
+    try {
+      const { beginCell } = await import("@ton/core");
+      const CLAIM_OPCODE = 0x66A8F123;
+      const payload = beginCell()
+        .storeUint(CLAIM_OPCODE, 32)
+        .storeUint(0, 64)
+        .storeUint(onChainRoundId, 32)
+        .endCell()
+        .toBoc()
+        .toString("base64");
+
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{
+          address: process.env.NEXT_PUBLIC_STAKE_VAULT_ADDRESS ?? "",
+          amount: "50000000",
+          payload,
+        }]
+      });
+
+      setWakeModal((m) => ({ ...m, isOpen: false, claimPending: false }));
+      setPopupMessage("🎉 Claim submitted! Your stake + reward is on the way.");
+      await refresh();
+    } catch {
+      // 거절하거나 실패하면 → 포기 처리
+      await handleForfeit();
+    }
+  };
+
+  const handleForfeit = async () => {
+    const { challengeId } = wakeModal;
+    setWakeModal((m) => ({ ...m, isOpen: false, claimPending: false }));
+    if (!challengeId) return;
+
+    try {
+      await getJson("/api/challenges/forfeit-reward", {
+        method: "POST",
+        body: JSON.stringify({ challengeId }),
+      });
+      setPopupMessage("Check-in complete. Your reward has been added to the next round's prize pool.");
+    } catch {
+      // 포기 API 실패해도 조용히 처리
+    }
+    await refresh();
   };
 
   const bindWallet = () => {
@@ -732,6 +802,19 @@ export function DashboardShell() {
           />
         </div>
       </section>
+      {/* ── WAKE SUCCESS MODAL ── */}
+      <WakeSuccessModal
+        isOpen={wakeModal.isOpen}
+        onClose={handleForfeit}
+        rewardTon={wakeModal.rewardTon}
+        targetTime={data?.challenge.wakeTime}
+        checkedInAt={new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        streakDays={data?.user?.successStreak ?? 1}
+        onClaim={handleClaim}
+        onForfeit={handleForfeit}
+        claimPending={wakeModal.claimPending}
+      />
+
       {/* ── TIME GUARD POPUP ── */}
       {popupMessage && (
         <div
