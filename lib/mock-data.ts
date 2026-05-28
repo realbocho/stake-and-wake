@@ -10,7 +10,8 @@ export function getFallbackChallenge(): ChallengeView {
     randomCheckInFrom: "05:18",
     randomCheckInTo: "05:42",
     poolTon: 87.5,
-    operatorInjectionTon: 0  // ← 이 줄 추가
+    operatorInjectionTon: 0,
+    onChainRoundId: 0
   };
 }
 
@@ -25,33 +26,15 @@ export function getFallbackUser(): SessionUser {
     netProfitTon: 12.4,
     nftTier: "Bronze",
     groupMemberCount: 10,
-    timezone: "UTC",   // ← 이 줄 추가
+    timezone: "UTC",
   };
 }
 
 export function getFallbackLeaderboard(): LeaderboardEntry[] {
   return [
-    {
-      userId: "1",
-      displayName: "Avery",
-      successCount: 12,
-      bestWakeTime: "04:41",
-      netProfitTon: 21.6
-    },
-    {
-      userId: "2",
-      displayName: "Jordan",
-      successCount: 11,
-      bestWakeTime: "04:58",
-      netProfitTon: 18.2
-    },
-    {
-      userId: "3",
-      displayName: "Riley",
-      successCount: 10,
-      bestWakeTime: "05:07",
-      netProfitTon: 15.9
-    }
+    { userId: "1", displayName: "Avery", successCount: 12, bestWakeTime: "04:41", netProfitTon: 21.6 },
+    { userId: "2", displayName: "Jordan", successCount: 11, bestWakeTime: "04:58", netProfitTon: 18.2 },
+    { userId: "3", displayName: "Riley", successCount: 10, bestWakeTime: "05:07", netProfitTon: 15.9 }
   ];
 }
 
