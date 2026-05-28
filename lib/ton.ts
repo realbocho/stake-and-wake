@@ -6,7 +6,8 @@ export function toNanoTon(valueTon: number) {
 }
 
 export function encodeBase64(bytes: Uint8Array) {
-  return Buffer.from(bytes).toString("base64");
+  // TonConnect requires base64url (+ → -, / → _, no padding)
+  return Buffer.from(bytes).toString("base64url");
 }
 
 /**
