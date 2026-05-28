@@ -6,6 +6,7 @@ import { stakeForTonight } from "@/lib/repositories/challenges";
 import { verifyOnChainDeposit, toNanoTon } from "@/lib/ton";
 import { env } from "@/lib/env";
 import { findUserById } from "@/lib/repositories/users";
+import { getSql } from "@/lib/db";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -14,12 +15,21 @@ export async function POST(request: Request) {
   try {
     const body = paymentConfirmSchema.parse(await request.json());
 
-    // ── [Fix] 1. Look up payment_intent and verify walletAddress ──────────────
+    // ── 1. Look up payment_intent ─────────────────────────────────────────────
     const intent = await getPaymentIntent(body.intentId, session.userId);
     if (!intent) return fail("Payment record not found.", 404);
     if (intent.status !== "prepared") return fail("This payment has already been processed.", 409);
 
-    // ── [Fix] 2. Verify actual on-chain TON deposit ────────────────────────────
+    // ── 2. Fetch onChainRoundId for this challenge ────────────────────────────
+    const sql = getSql();
+    const [challengeRow] = await sql<{ on_chain_round_id: number }[]>`
+      select on_chain_round_id from challenge where id = ${intent.challengeId} limit 1
+    `;
+    if (!challengeRow?.on_chain_round_id) {
+      return fail("Round is not open yet.", 400);
+    }
+
+    // ── 3. Verify actual on-chain TON deposit ─────────────────────────────────
     const user = await findUserById(session.userId);
     if (!user?.walletAddress) return fail("Wallet is not connected.", 400);
 
@@ -27,9 +37,8 @@ export async function POST(request: Request) {
       fromWallet: user.walletAddress,
       toVault: env.stakeVaultAddress,
       expectedNano: toNanoTon(body.stakeAmountTon),
-      challengeId: intent.challengeId,
+      roundId: challengeRow.on_chain_round_id,
       telegramId: session.telegramId,
-      wakeTime: body.wakeTime,
     });
 
     if (!txHash) {
@@ -39,7 +48,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // ── [Fix] 3. Save verified tx hash and process staking ─────────────────
+    // ── 4. Save verified tx hash and process staking ──────────────────────────
     await confirmPaymentIntent({
       intentId: body.intentId,
       userId: session.userId,
