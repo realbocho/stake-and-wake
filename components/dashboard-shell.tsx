@@ -356,14 +356,14 @@ export function DashboardShell() {
 
     try {
       const { beginCell } = await import("@ton/core");
-      const CLAIM_OPCODE = 0x66A8F123;
+      const CLAIM_OPCODE = 0xe6a8f123; // crc32("Claim") | 0x80000000
       const payload = beginCell()
         .storeUint(CLAIM_OPCODE, 32)
         .storeUint(0, 64)
         .storeUint(onChainRoundId, 32)
         .endCell()
         .toBoc()
-        .toString("base64");
+        .toString("base64url");
 
       await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 300,
