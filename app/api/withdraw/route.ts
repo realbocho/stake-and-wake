@@ -6,8 +6,8 @@ import { env } from "@/lib/env";
 import { toNanoTon, encodeBase64 } from "@/lib/ton";
 import { beginCell } from "@ton/core";
 
-// Claim opcode — confirmed from ABI: 1504906600 = 0x59A1C3E8
-const CLAIM_OPCODE = 0x66A8F123;
+// Claim opcode — crc32("Claim") | 0x80000000
+const CLAIM_OPCODE = 0xe6a8f123;
 
 function buildClaimPayload(roundId: number): string {
   return encodeBase64(
