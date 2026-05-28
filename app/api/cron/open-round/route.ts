@@ -4,7 +4,7 @@ import { mnemonicToPrivateKey } from "@ton/crypto";
 import { env } from "@/lib/env";
 import { getSql } from "@/lib/db";
 
-const OPEN_ROUND_OPCODE = 0xe20f76ad; // crc32("OpenRound") | 0x80000000
+const OPEN_ROUND_OPCODE = 51917385; // 0x03183249
 
 function getTodayRoundId(): number {
  return parseInt(new Date().toISOString().slice(0, 10).replace(/-/g, ""), 10);
@@ -93,21 +93,18 @@ export async function GET(request: Request) {
    });
 
    const walletAddress = wallet.address.toString({ bounceable: false });
-   const walletAddressBounceable = wallet.address.toString({ bounceable: true });
-   console.log(`[cron/open-round] cron wallet (non-bounceable): ${walletAddress}`);
-   console.log(`[cron/open-round] cron wallet (bounceable): ${walletAddressBounceable}`);
-   console.log(`[cron/open-round] contract address: ${env.stakeVaultAddress}`);
-   console.log(`[cron/open-round] ⚠ wallet must match contract owner or requireOwner() will throw`);
+   console.log(`[cron/open-round] wallet: ${walletAddress}`);
+   console.log(`[cron/open-round] contract: ${env.stakeVaultAddress}`);
 
    const contract = client.open(wallet);
    const seqno = await contract.getSeqno();
 
    const body = beginCell()
-     .storeUint(OPEN_ROUND_OPCODE, 32)
-     .storeUint(0, 64)
-     .storeUint(roundId, 32)
-     .storeCoins(toNano("0.5"))
-     .storeUint(closesAt, 32)
+     .storeUint(OPEN_ROUND_OPCODE, 32)  // 0x03183249
+     .storeUint(0, 64)                   // queryId
+     .storeUint(roundId, 32)             // roundId
+     .storeCoins(toNano("0.5"))          // minStake
+     .storeUint(closesAt, 32)            // closesAt
      .endCell();
 
    await contract.sendTransfer({
