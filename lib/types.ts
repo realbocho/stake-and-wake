@@ -28,6 +28,8 @@ export type ChallengeView = {
   randomCheckInTo: string;
   poolTon: number;
   operatorInjectionTon: number;
+  /** uint32 roundId used in StakeWakeVault smart contract Claim/OpenRound messages */
+  onChainRoundId: number;
 };
 export type LeaderboardEntry = {
   userId: string;
