@@ -356,7 +356,7 @@ export function DashboardShell() {
 
     try {
       const { beginCell } = await import("@ton/core");
-      const CLAIM_OPCODE = 0xe6a8f123; // crc32("Claim") | 0x80000000
+      const CLAIM_OPCODE = 1504906600; // 0x59a1c3e8
       const payload = beginCell()
         .storeUint(CLAIM_OPCODE, 32)
         .storeUint(0, 64)
