@@ -4,6 +4,7 @@ import { checkInSchema } from "@/lib/validators";
 import { passVerification } from "@/lib/repositories/challenges";
 import { findUserById } from "@/lib/repositories/users";
 import { sendSuccessToGroup } from "@/lib/telegram-bot";
+import { getSql } from "@/lib/db";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -12,8 +13,6 @@ export async function POST(request: Request) {
   try {
     const body = checkInSchema.parse(await request.json());
 
-    // ── [수정] reactionMs는 서버에서 계산, response 필드는 참고용으로만 사용
-    // passVerification 내부에서 시간 윈도우 + sleep_lock 상태도 검증합니다.
     const verification = await passVerification({
       userId: session.userId,
       challengeId: body.challengeId,
@@ -28,7 +27,20 @@ export async function POST(request: Request) {
       });
     }
 
-    return ok({ ok: true, reactionMs: verification.reactionMs });
+    // 온체인 Claim에 필요한 roundId 반환
+    const sql = getSql();
+    const [challenge] = await sql<{ on_chain_round_id: number }[]>`
+      select on_chain_round_id
+      from challenge
+      where id = ${body.challengeId}
+      limit 1
+    `;
+
+    return ok({
+      ok: true,
+      reactionMs: verification.reactionMs,
+      onChainRoundId: challenge?.on_chain_round_id ?? null,
+    });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Check-in failed.";
     return fail(message);
