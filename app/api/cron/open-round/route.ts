@@ -93,8 +93,11 @@ export async function GET(request: Request) {
    });
 
    const walletAddress = wallet.address.toString({ bounceable: false });
-   console.log(`[cron/open-round] cron wallet address: ${walletAddress}`);
+   const walletAddressBounceable = wallet.address.toString({ bounceable: true });
+   console.log(`[cron/open-round] cron wallet (non-bounceable): ${walletAddress}`);
+   console.log(`[cron/open-round] cron wallet (bounceable): ${walletAddressBounceable}`);
    console.log(`[cron/open-round] contract address: ${env.stakeVaultAddress}`);
+   console.log(`[cron/open-round] ⚠ wallet must match contract owner or requireOwner() will throw`);
 
    const contract = client.open(wallet);
    const seqno = await contract.getSeqno();
@@ -114,7 +117,7 @@ export async function GET(request: Request) {
        internal({
          to: Address.parse(env.stakeVaultAddress),
          value: toNano("0.05"),
-         bounce: true,
+         bounce: false,
          body,
        }),
      ],
