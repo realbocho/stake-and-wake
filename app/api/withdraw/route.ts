@@ -35,11 +35,13 @@ export async function POST() {
     const challenge = await getActiveChallengeForUser(session.userId);
     if (!challenge) return fail("No active challenge found.", 400);
 
-    const roundId = Number(challenge.id);
+    const roundId = challenge.onChainRoundId;
+    if (!roundId || roundId === 0) {
+      return fail("Round ID not configured. Contact support.", 500);
+    }
 
     return ok({
       to: env.stakeVaultAddress,
-      // Gas fee only — contract sends back principal + reward to user wallet
       amountNano: toNanoTon(0.05).toString(),
       withdrawableTon,
       payload: buildClaimPayload(roundId),
