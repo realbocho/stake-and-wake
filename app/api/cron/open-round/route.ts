@@ -16,6 +16,20 @@ function getClosesAt(): number {
   return Math.floor(d.getTime() / 1000);
 }
 
+async function getContractRoundId(client: TonClient, vaultAddress: string): Promise<number> {
+  try {
+    const result = await client.runMethod(
+      Address.parse(vaultAddress),
+      "getRoundState",
+      []
+    );
+    return Number(result.stack.readNumber());
+  } catch (err) {
+    console.warn("[cron/open-round] getRoundState 호출 실패, 0으로 가정:", err);
+    return 0;
+  }
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const adminKey = request.headers.get("x-admin-key");
@@ -29,31 +43,57 @@ export async function GET(request: Request) {
 
   const mnemonic = process.env.OWNER_MNEMONIC?.split(" ");
   if (!mnemonic || mnemonic.length < 24) {
-    return NextResponse.json({ error: "OWNER_MNEMONIC 환경변수가 설정되지 않았습니다." }, { status: 500 });
+    return NextResponse.json(
+      { error: "OWNER_MNEMONIC 환경변수가 설정되지 않았습니다." },
+      { status: 500 }
+    );
   }
 
   const roundId = getTodayRoundId();
   const closesAt = getClosesAt();
 
   try {
+    // 1. DB에서 오늘 challenge 레코드 확인
     const sql = getSql();
-    const [existing] = await sql<{ on_chain_round_id: number }[]>`
-      select on_chain_round_id from challenge
+    const [existing] = await sql<{ id: string }[]>`
+      select id from challenge
       where challenge_date = current_date
       limit 1
     `;
 
     if (!existing) {
-      return NextResponse.json({ error: "오늘 challenge 레코드가 없습니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "오늘 challenge 레코드가 없습니다." },
+        { status: 400 }
+      );
     }
 
-    const keyPair = await mnemonicToPrivateKey(mnemonic);
-    const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
-
+    // 2. TonClient 초기화
     const client = new TonClient({
-      endpoint: process.env.TON_NETWORK === "mainnet"
-        ? "https://toncenter.com/api/v2/jsonRPC"
-        : "https://testnet.toncenter.com/api/v2/jsonRPC",
+      endpoint:
+        process.env.TON_NETWORK === "mainnet"
+          ? "https://toncenter.com/api/v2/jsonRPC"
+          : "https://testnet.toncenter.com/api/v2/jsonRPC",
+      apiKey: process.env.TONCENTER_API_KEY,
+    });
+
+    // 3. 컨트랙트 상태 확인 → 오늘 roundId면 이미 열린 것 → skip
+    const contractRoundId = await getContractRoundId(client, env.stakeVaultAddress);
+    if (contractRoundId === roundId) {
+      console.log(`[cron/open-round] 이미 열린 라운드입니다. roundId=${roundId}, skip.`);
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: "round already open",
+        roundId,
+      });
+    }
+
+    // 4. OpenRound 트랜잭션 전송
+    const keyPair = await mnemonicToPrivateKey(mnemonic);
+    const wallet = WalletContractV4.create({
+      publicKey: keyPair.publicKey,
+      workchain: 0,
     });
 
     const contract = client.open(wallet);
@@ -80,9 +120,9 @@ export async function GET(request: Request) {
       ],
     });
 
-    console.log(`[cron/open-round] OpenRound sent: roundId=${roundId}`);
+    console.log(`[cron/open-round] OpenRound sent: roundId=${roundId}, seqno=${seqno}`);
 
-    return NextResponse.json({ ok: true, roundId, closesAt, seqno });
+    return NextResponse.json({ ok: true, skipped: false, roundId, closesAt, seqno });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "OpenRound 실패";
     console.error("[cron/open-round] error:", message);
