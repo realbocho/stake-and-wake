@@ -103,7 +103,7 @@ export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [pending, startTransition] = useTransition();
-  const [stakeAmount, setStakeAmount] = useState("3");
+  const [stakeAmount, setStakeAmount] = useState("1");
   const [wakeTime, setWakeTime] = useState("05:30");
   const [inviteCode, setInviteCode] = useState("");
   const [groupInviteCode, setGroupInviteCode] = useState("");
