@@ -107,9 +107,8 @@ export async function getOrCreateTonightChallenge() {
   `;
   if (existing) return mapChallenge(existing);
 
-  // Derive a stable uint32 roundId from today's date: YYYYMMDD fits in uint32
-  const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const onChainRoundId = parseInt(todayStr, 10); // e.g. 20260528
+  // on_chain_round_id는 cron(open-round)이 OpenRound 전송 후 업데이트함
+  const onChainRoundId = 0;
 
   const id = randomUUID();
   await sql`
