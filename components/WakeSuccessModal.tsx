@@ -6,18 +6,26 @@ interface WakeSuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
   stakedAmount?: number;
+  rewardTon?: number;
   targetTime?: string;
   checkedInAt?: string;
   streakDays?: number;
+  onClaim?: () => void;       // 클레임 버튼 핸들러
+  onForfeit?: () => void;     // 포기 버튼 핸들러
+  claimPending?: boolean;
 }
 
 export default function WakeSuccessModal({
   isOpen,
   onClose,
   stakedAmount = 0,
+  rewardTon = 0,
   targetTime = "6:00 AM",
   checkedInAt = "5:58 AM",
   streakDays = 1,
+  onClaim,
+  onForfeit,
+  claimPending = false,
 }: WakeSuccessModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -32,11 +40,12 @@ export default function WakeSuccessModal({
 
   if (!isOpen) return null;
 
+  const hasReward = rewardTon > 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.75)" }}
-      onClick={onClose}
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
     >
       <div
         className="relative mx-4 w-full max-w-sm rounded-2xl p-6 text-center"
@@ -52,7 +61,6 @@ export default function WakeSuccessModal({
           }}
         >
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            {/* Alarm clock with checkmark */}
             <circle cx="20" cy="21" r="13" stroke="#22c55e" strokeWidth="2" />
             <path
               d="M13 21L18 26L27 16"
@@ -78,101 +86,117 @@ export default function WakeSuccessModal({
           You&apos;re up and ready — great discipline!
         </p>
 
-        {/* Divider */}
         <div className="my-4 h-px w-full" style={{ background: "rgba(255,255,255,0.08)" }} />
 
         {/* Details */}
-        <div className="mb-5 space-y-3 text-left">
+        <div className="mb-4 space-y-3 text-left">
           <div
             className="flex items-center justify-between rounded-xl px-4 py-3"
-            style={{
-              background: "rgba(34, 197, 94, 0.08)",
-              border: "1px solid rgba(34,197,94,0.2)",
-            }}
+            style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
           >
-            <span className="text-sm" style={{ color: "#9ca3af" }}>
-              Target Wake Time
-            </span>
-            <span className="text-sm font-semibold" style={{ color: "#f3f4f6" }}>
-              {targetTime}
-            </span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>Target Wake Time</span>
+            <span className="text-sm font-semibold" style={{ color: "#f3f4f6" }}>{targetTime}</span>
           </div>
 
           <div
             className="flex items-center justify-between rounded-xl px-4 py-3"
-            style={{
-              background: "rgba(34, 197, 94, 0.08)",
-              border: "1px solid rgba(34,197,94,0.2)",
-            }}
+            style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
           >
-            <span className="text-sm" style={{ color: "#9ca3af" }}>
-              Checked In At
-            </span>
-            <span className="text-sm font-semibold" style={{ color: "#22c55e" }}>
-              {checkedInAt}
-            </span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>Checked In At</span>
+            <span className="text-sm font-semibold" style={{ color: "#22c55e" }}>{checkedInAt}</span>
           </div>
 
           {stakedAmount > 0 && (
             <div
               className="flex items-center justify-between rounded-xl px-4 py-3"
-              style={{
-                background: "rgba(34, 197, 94, 0.08)",
-                border: "1px solid rgba(34,197,94,0.2)",
-              }}
+              style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
             >
-              <span className="text-sm" style={{ color: "#9ca3af" }}>
-                Stake Protected
-              </span>
-              <span className="text-sm font-semibold" style={{ color: "#22c55e" }}>
-                {stakedAmount} TON
-              </span>
+              <span className="text-sm" style={{ color: "#9ca3af" }}>Stake Protected</span>
+              <span className="text-sm font-semibold" style={{ color: "#22c55e" }}>{stakedAmount} TON</span>
+            </div>
+          )}
+
+          {hasReward && (
+            <div
+              className="flex items-center justify-between rounded-xl px-4 py-3"
+              style={{ background: "rgba(251, 191, 36, 0.08)", border: "1px solid rgba(251,191,36,0.3)" }}
+            >
+              <span className="text-sm" style={{ color: "#9ca3af" }}>Your Reward</span>
+              <span className="text-sm font-semibold" style={{ color: "#fbbf24" }}>+{rewardTon.toFixed(4)} TON</span>
             </div>
           )}
 
           <div
             className="flex items-center justify-between rounded-xl px-4 py-3"
-            style={{
-              background: "rgba(34, 197, 94, 0.08)",
-              border: "1px solid rgba(34,197,94,0.2)",
-            }}
+            style={{ background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
           >
-            <span className="text-sm" style={{ color: "#9ca3af" }}>
-              Current Streak
-            </span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>Current Streak</span>
             <span className="text-sm font-semibold" style={{ color: "#f3f4f6" }}>
               🔥 {streakDays} {streakDays === 1 ? "day" : "days"}
             </span>
           </div>
         </div>
 
-        {/* Message */}
-        <p className="mb-6 text-sm leading-relaxed" style={{ color: "#6b7280" }}>
-          You checked in on time and your stake is safe.
-          <br />
-          Keep going — you&apos;re eligible for the reward pool!
-        </p>
+        {/* 경고 문구 — 클레임 안 하면 다음 라운드로 넘어감 */}
+        {hasReward && onClaim && (
+          <div
+            className="mb-4 rounded-xl px-4 py-3 text-left"
+            style={{
+              background: "rgba(251, 191, 36, 0.08)",
+              border: "1px solid rgba(251,191,36,0.25)",
+            }}
+          >
+            <p className="text-xs leading-relaxed" style={{ color: "#fbbf24" }}>
+              ⚠️ <strong>Claim your reward now.</strong> If you skip, your{" "}
+              <strong>{rewardTon.toFixed(4)} TON reward</strong> will be forfeited
+              and added to the next round&apos;s prize pool. This cannot be undone.
+            </p>
+          </div>
+        )}
 
-        {/* Button */}
-        <button
-          onClick={onClose}
-          className="w-full rounded-xl py-3 text-sm font-semibold transition-all duration-150 active:scale-95"
-          style={{
-            background: "rgba(34, 197, 94, 0.15)",
-            color: "#22c55e",
-            border: "1px solid rgba(34,197,94,0.3)",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "rgba(34, 197, 94, 0.25)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "rgba(34, 197, 94, 0.15)";
-          }}
-        >
-          Awesome!
-        </button>
+        {/* Buttons */}
+        {hasReward && onClaim ? (
+          <div className="space-y-2">
+            <button
+              onClick={onClaim}
+              disabled={claimPending}
+              className="w-full rounded-xl py-3 text-sm font-semibold transition-all duration-150 active:scale-95"
+              style={{
+                background: claimPending ? "rgba(34,197,94,0.1)" : "rgba(34, 197, 94, 0.85)",
+                color: claimPending ? "#22c55e" : "#000",
+                border: "1px solid rgba(34,197,94,0.5)",
+                cursor: claimPending ? "not-allowed" : "pointer",
+              }}
+            >
+              {claimPending ? "Waiting for wallet..." : "✅ Claim Reward Now"}
+            </button>
+            <button
+              onClick={onForfeit}
+              disabled={claimPending}
+              className="w-full rounded-xl py-2 text-xs transition-all duration-150"
+              style={{
+                background: "transparent",
+                color: "#6b7280",
+                border: "1px solid rgba(255,255,255,0.08)",
+                cursor: claimPending ? "not-allowed" : "pointer",
+              }}
+            >
+              Skip — forfeit my reward to the next round
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onClose}
+            className="w-full rounded-xl py-3 text-sm font-semibold transition-all duration-150 active:scale-95"
+            style={{
+              background: "rgba(34, 197, 94, 0.15)",
+              color: "#22c55e",
+              border: "1px solid rgba(34,197,94,0.3)",
+            }}
+          >
+            Awesome!
+          </button>
+        )}
       </div>
     </div>
   );
