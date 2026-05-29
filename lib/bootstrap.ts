@@ -53,7 +53,11 @@ export async function loadBootstrap() {
     ? activeChallenge
     : activeChallenge ?? await getOrCreateTonightChallenge();
 
-  const pendingWithdrawTon = await getPendingWithdrawTon(user?.walletAddress);
+  const onChainPending = await getPendingWithdrawTon(user?.walletAddress);
+  // 온체인 조회 실패(null) 시 DB의 net_profit_ton을 fallback으로 사용
+  const pendingWithdrawTon = onChainPending !== null
+    ? onChainPending
+    : (user?.netProfitTon ?? 0);
 
   return {
     ...base,
