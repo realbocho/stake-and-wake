@@ -24,10 +24,13 @@ export async function POST(request: Request) {
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const contract = client.open(wallet);
+
+    // 컨트랙트 현재 roundId 조회
     const result = await client.runMethod(Address.parse(env.stakeVaultAddress), "getRoundState", []);
     const currentRoundId = Number(result.stack.readNumber());
     const nextRoundId = currentRoundId + 1;
     const seqno = await contract.getSeqno();
+
     await contract.sendTransfer({
       secretKey: keyPair.secretKey, seqno,
       messages: [internal({ to: Address.parse(env.stakeVaultAddress), value: toNano("0.05"), bounce: false,
@@ -41,14 +44,15 @@ export async function POST(request: Request) {
       })],
     });
 
-    // DB 업데이트
+    // DB를 nextRoundId로 업데이트 (트랜잭션 성공 가정)
+    // 실패 시 /api/admin/round/sync 로 재동기화 가능
     const sql = getSql();
     await sql`
       update challenge set on_chain_round_id = ${nextRoundId}
       where challenge_date = current_date
     `;
 
-    return NextResponse.json({ ok: true, roundId: nextRoundId, seqno });
+    return NextResponse.json({ ok: true, roundId: nextRoundId, seqno, note: "If stake fails with 204, call /api/admin/round/sync to resync DB" });
   } catch (cause) {
     return NextResponse.json({ error: cause instanceof Error ? cause.message : "failed" }, { status: 500 });
   }
