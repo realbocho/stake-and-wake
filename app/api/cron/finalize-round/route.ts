@@ -64,20 +64,28 @@ export async function GET(request: Request) {
     const contract = client.open(wallet);
     const vaultAddr = Address.parse(env.stakeVaultAddress);
 
-    // 1. FinalizeRound
+    // 1. FinalizeRound (이미 finalized면 skip)
+    const isFinalized = challenge.status === "settled";
     let seqno = await contract.getSeqno();
-    await contract.sendTransfer({
-      secretKey: keyPair.secretKey, seqno,
-      messages: [internal({
-        to: vaultAddr, value: toNano("0.05"), bounce: false,
-        body: beginCell()
-          .storeUint(FINALIZE_ROUND_OPCODE, 32)
-          .storeUint(0, 64)
-          .storeUint(roundId, 32)
-          .endCell(),
-      })],
-    });
-    console.log(`[finalize-round] FinalizeRound sent, seqno=${seqno}`);
+
+    if (!isFinalized) {
+      await contract.sendTransfer({
+        secretKey: keyPair.secretKey, seqno,
+        messages: [internal({
+          to: vaultAddr, value: toNano("0.05"), bounce: false,
+          body: beginCell()
+            .storeUint(FINALIZE_ROUND_OPCODE, 32)
+            .storeUint(0, 64)
+            .storeUint(roundId, 32)
+            .endCell(),
+        })],
+      });
+      console.log(`[finalize-round] FinalizeRound sent, seqno=${seqno}`);
+      await new Promise(r => setTimeout(r, 3000));
+      seqno = await contract.getSeqno();
+    } else {
+      console.log(`[finalize-round] Already finalized, skipping FinalizeRound`);
+    }
 
     // 2. CreditWinner 각 winner에게
     let credited = 0;
