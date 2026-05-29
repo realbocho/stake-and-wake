@@ -44,6 +44,7 @@ export function getFallbackBootstrap() {
     challenge: getFallbackChallenge(),
     leaderboard: getFallbackLeaderboard(),
     referralBalanceTon: env.referralBonusTon,
+    pendingWithdrawTon: 0,
     dailyFeeTon: env.dailyFeeTon,
     weeklyPerfectGroupBonusTon: 5,
     antiCheatNotes: [
