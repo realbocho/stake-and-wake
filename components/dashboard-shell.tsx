@@ -141,6 +141,13 @@ export function DashboardShell() {
     });
   }, [refresh]);
 
+  // 챌린지 실패 시 팝업
+  useEffect(() => {
+    if (data?.challenge?.status === "failed") {
+      setPopupMessage("😔 You failed today's challenge. Your stake has been distributed to successful participants.");
+    }
+  }, [data?.challenge?.status]);
+
   useEffect(() => {
     const initData = getTelegramInitData();
     if (!initData || authenticated) return;
