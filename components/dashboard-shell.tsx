@@ -293,7 +293,7 @@ export function DashboardShell() {
         body: JSON.stringify({ deviceId: getDeviceFingerprint() })
       })
         .then(() => {
-          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.");
+          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.\n\n⚠️ After waking up, you must Claim your reward immediately. If you close the popup without claiming, your reward will be permanently forfeited to the next round's prize pool.");
           return refresh();
         })
         .catch((cause: unknown) => {
