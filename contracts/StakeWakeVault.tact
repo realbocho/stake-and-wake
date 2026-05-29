@@ -3,8 +3,8 @@ import "@stdlib/ownable";
 struct StakeEntry {
     roundId: Int as uint32;
     amount: Int as coins;
-    status: Int as uint8;
-    claimed: Bool;
+    status: Int as uint8; // 0=staked, 1=success, 2=failed
+    credited: Bool;       // pendingWithdraw에 적립됐는지 여부
 }
 
 message OpenRound {
@@ -31,9 +31,14 @@ message FinalizeRound {
     roundId: Int as uint32;
 }
 
-message Claim {
+message CreditWinner {
     queryId: Int as uint64;
     roundId: Int as uint32;
+    participant: Address;
+}
+
+message Withdraw {
+    queryId: Int as uint64;
 }
 
 message WithdrawFees {
@@ -68,16 +73,13 @@ contract StakeWakeVault with Ownable {
 
     totalStaked: Int as coins;
     failedPool: Int as coins;
-
     totalSuccessStake: Int as coins;
     distributablePool: Int as coins;
-
-    successCount: Int as uint32;
-    paidSuccessCount: Int as uint32;
 
     platformFeesAccrued: Int as coins;
 
     stakes: map<Address, StakeEntry>;
+    pendingWithdraw: map<Address, Int as coins>;
 
     init(owner: Address, operator: Address, platformFeeBps: Int as uint16) {
         self.owner = owner;
@@ -92,8 +94,6 @@ contract StakeWakeVault with Ownable {
         self.failedPool = 0;
         self.totalSuccessStake = 0;
         self.distributablePool = 0;
-        self.successCount = 0;
-        self.paidSuccessCount = 0;
         self.platformFeesAccrued = 0;
     }
 
@@ -104,27 +104,14 @@ contract StakeWakeVault with Ownable {
     receive(msg: OpenRound) {
         self.requireOwner();
         throwUnless(201, !self.roundOpen);
-        // 미Claim winner가 있어도 closesAt + 24시간 이후면 오픈 허용
         throwUnless(202, self.currentRoundId == 0
-            || self.paidSuccessCount == self.successCount
+            || self.roundFinalized
             || now() > self.closesAt + 86400);
 
-        // 이월 처리
+        // 성공자 없으면 distributablePool 이월
         let carryOver: Int = 0;
-
-        if (self.roundFinalized) {
-            // 1. 성공자가 없으면 distributablePool 전액 이월
-            if (self.successCount == 0) {
-                carryOver = carryOver + self.distributablePool;
-            }
-
-            // 2. 미Claim winner의 보상 이월 (closesAt + 24시간 강제 오픈 시)
-            if (self.paidSuccessCount < self.successCount && self.totalSuccessStake > 0) {
-                let claimedStake: Int = self.totalSuccessStake * self.paidSuccessCount / self.successCount;
-                let unclaimedStake: Int = self.totalSuccessStake - claimedStake;
-                let unclaimedReward: Int = self.distributablePool * unclaimedStake / self.totalSuccessStake;
-                carryOver = carryOver + unclaimedReward;
-            }
+        if (self.roundFinalized && self.totalSuccessStake == 0) {
+            carryOver = self.distributablePool;
         }
 
         self.currentRoundId = msg.roundId;
@@ -133,12 +120,11 @@ contract StakeWakeVault with Ownable {
         self.minStake = msg.minStake;
         self.closesAt = msg.closesAt;
         self.totalStaked = 0;
-        self.failedPool = carryOver; // 이월금으로 시작
+        self.failedPool = carryOver;
         self.totalSuccessStake = 0;
         self.distributablePool = 0;
-        self.successCount = 0;
-        self.paidSuccessCount = 0;
         self.stakes = emptyMap();
+        // pendingWithdraw 유지 (이전 미출금 보존)
     }
 
     receive(msg: Stake) {
@@ -151,7 +137,7 @@ contract StakeWakeVault with Ownable {
             roundId: msg.roundId,
             amount: context().value,
             status: 0,
-            claimed: false
+            credited: false
         });
         self.totalStaked += context().value;
     }
@@ -169,13 +155,12 @@ contract StakeWakeVault with Ownable {
         throwUnless(210, msg.roundId == self.currentRoundId);
         throwUnless(211, self.stakes.exists(msg.participant));
 
-        let stake = self.stakes.get(msg.participant)!!;
+        let stake: StakeEntry = self.stakes.get(msg.participant)!!;
         throwUnless(212, stake.roundId == msg.roundId);
         throwUnless(213, stake.status == 0);
 
         if (msg.success) {
             stake.status = 1;
-            self.successCount += 1;
             self.totalSuccessStake += stake.amount;
         } else {
             stake.status = 2;
@@ -190,64 +175,79 @@ contract StakeWakeVault with Ownable {
         throwUnless(215, !self.roundFinalized);
         throwUnless(216, msg.roundId == self.currentRoundId);
 
-        let fee = self.failedPool * self.platformFeeBps / 10000;
+        let fee: Int = self.failedPool * self.platformFeeBps / 10000;
         self.distributablePool = self.failedPool - fee;
         self.platformFeesAccrued += fee;
         self.roundFinalized = true;
     }
 
-    receive(msg: Claim) {
+    // FinalizeRound 후 owner가 winner별로 호출 → pendingWithdraw 적립
+    receive(msg: CreditWinner) {
+        self.requireOwner();
         throwUnless(217, self.roundFinalized);
-        throwUnless(218, self.stakes.exists(sender()));
+        throwUnless(218, msg.roundId == self.currentRoundId);
+        throwUnless(219, self.stakes.exists(msg.participant));
 
-        let stake = self.stakes.get(sender())!!;
-        throwUnless(219, stake.roundId == msg.roundId);
-        throwUnless(220, !stake.claimed);
-        throwUnless(221, stake.status == 1);
-
-        stake.claimed = true;
-        self.paidSuccessCount += 1;
-        self.stakes.set(sender(), stake);
+        let stake: StakeEntry = self.stakes.get(msg.participant)!!;
+        throwUnless(220, stake.status == 1); // winner만
+        throwUnless(221, !stake.credited);   // 중복 적립 방지
 
         let reward: Int = 0;
         if (self.totalSuccessStake > 0) {
             reward = self.distributablePool * stake.amount / self.totalSuccessStake;
         }
 
+        // 기존 pendingWithdraw에 누적 (이전 라운드 미출금 보존)
+        let existing: Int = 0;
+        if (self.pendingWithdraw.exists(msg.participant)) {
+            existing = self.pendingWithdraw.get(msg.participant)!!;
+        }
+        self.pendingWithdraw.set(msg.participant, existing + stake.amount + reward);
+
+        stake.credited = true;
+        self.stakes.set(msg.participant, stake);
+    }
+
+    // 유저가 원할 때 언제든 출금
+    receive(msg: Withdraw) {
+        throwUnless(230, self.pendingWithdraw.exists(sender()));
+        let amount: Int = self.pendingWithdraw.get(sender())!!;
+        throwUnless(231, amount > 0);
+
+        self.pendingWithdraw.set(sender(), 0);
+
         send(SendParameters {
             to: sender(),
-            value: stake.amount + reward,
+            value: amount,
             bounce: false
         });
     }
 
     receive(msg: WithdrawFees) {
         self.requireOwner();
-        throwUnless(222, msg.amount <= self.platformFeesAccrued);
+        throwUnless(240, msg.amount <= self.platformFeesAccrued);
         self.platformFeesAccrued -= msg.amount;
-
-        send(SendParameters {
-            to: msg.to,
-            value: msg.amount,
-            bounce: false
-        });
+        send(SendParameters { to: msg.to, value: msg.amount, bounce: false });
     }
 
     receive(msg: EmergencyWithdraw) {
         self.requireOwner();
-        throwUnless(230, msg.amount > 0);
-        throwUnless(231, msg.amount <= self.failedPool);
+        throwUnless(250, msg.amount > 0);
+        throwUnless(251, msg.amount <= self.failedPool);
         self.failedPool -= msg.amount;
-
-        send(SendParameters {
-            to: msg.to,
-            value: msg.amount,
-            bounce: false
-        });
+        send(SendParameters { to: msg.to, value: msg.amount, bounce: false });
     }
 
     get fun getRoundState(): Int {
         return self.currentRoundId;
+    }
+
+    // 유저별 출금 가능 잔액 조회
+    get fun getPendingWithdraw(addr: Address): Int {
+        if (self.pendingWithdraw.exists(addr)) {
+            return self.pendingWithdraw.get(addr)!!;
+        }
+        return 0;
     }
 
     get fun getFailedPool(): Int {
@@ -264,23 +264,5 @@ contract StakeWakeVault with Ownable {
 
     get fun getPlatformFeesAccrued(): Int {
         return self.platformFeesAccrued;
-    }
-
-    get fun getCarryOverPreview(): Int {
-        // 다음 라운드로 이월될 금액 미리보기
-        if (!self.roundFinalized) {
-            return 0;
-        }
-        let carryOver: Int = 0;
-        if (self.successCount == 0) {
-            carryOver = carryOver + self.distributablePool;
-        }
-        if (self.paidSuccessCount < self.successCount && self.totalSuccessStake > 0) {
-            let claimedStake: Int = self.totalSuccessStake * self.paidSuccessCount / self.successCount;
-            let unclaimedStake: Int = self.totalSuccessStake - claimedStake;
-            let unclaimedReward: Int = self.distributablePool * unclaimedStake / self.totalSuccessStake;
-            carryOver = carryOver + unclaimedReward;
-        }
-        return carryOver;
     }
 }
