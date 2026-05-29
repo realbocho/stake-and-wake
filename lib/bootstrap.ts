@@ -12,21 +12,31 @@ import { TonClient, Address } from "@ton/ton";
 async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number> {
   if (!walletAddress) return 0;
   try {
-    const client = new TonClient({
-      endpoint: process.env.TON_NETWORK === "mainnet"
-        ? "https://toncenter.com/api/v2/jsonRPC"
-        : "https://testnet.toncenter.com/api/v2/jsonRPC",
-      apiKey: process.env.TONCENTER_API_KEY,
-    });
     const { beginCell } = require("@ton/core");
-    // toncenter v2는 주소를 cell(slice)로 전달해야 함
     const addrCell = beginCell().storeAddress(Address.parse(walletAddress)).endCell();
-    const result = await client.runMethod(
-      Address.parse(env.stakeVaultAddress),
-      "getPendingWithdraw",
-      [{ type: "slice", cell: addrCell }]
-    );
-    const nanotons = result.stack.readBigNumber();
+    const bocBase64 = addrCell.toBoc().toString("base64");
+
+    const base = process.env.TON_NETWORK === "mainnet"
+      ? "https://toncenter.com/api/v2"
+      : "https://testnet.toncenter.com/api/v2";
+    const apiKey = process.env.TONCENTER_API_KEY ?? "";
+
+    const resp = await fetch(`${base}/runGetMethod`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+      body: JSON.stringify({
+        address: env.stakeVaultAddress,
+        method: "getPendingWithdraw",
+        stack: [["tvm.Slice", bocBase64]],
+      }),
+      cache: "no-store",
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await resp.json() as any;
+    if (!data.ok || !data.result) return 0;
+    const stackVal = data.result.stack?.[0]?.[1];
+    if (!stackVal) return 0;
+    const nanotons = BigInt(typeof stackVal === "string" ? stackVal : stackVal.number ?? "0");
     console.log("[getPendingWithdraw] nanotons:", nanotons.toString(), "TON:", Number(nanotons) / 1e9);
     return Number(nanotons) / 1e9;
   } catch (e) {
@@ -34,6 +44,7 @@ async function getPendingWithdrawTon(walletAddress: string | null | undefined): 
     return 0;
   }
 }
+
 
 export async function loadBootstrap() {
   const base = getFallbackBootstrap();
