@@ -18,6 +18,7 @@ type DashboardPayload = {
   challenge: ChallengeView;
   leaderboard: LeaderboardEntry[];
   referralBalanceTon: number;
+  pendingWithdrawTon: number;
   dailyFeeTon: number;
   weeklyPerfectGroupBonusTon: number;
   antiCheatNotes: string[];
@@ -125,7 +126,8 @@ export function DashboardShell() {
     data?.user?.walletAddress !== walletAddress;
 
   const canWithdraw =
-    authenticated && (data?.user?.netProfitTon ?? 0) > 0;
+    authenticated;
+  const withdrawableTon = data?.pendingWithdrawTon ?? data?.user?.netProfitTon ?? 0;
 
   const refresh = useMemo(
     () => async () => {
@@ -154,7 +156,7 @@ export function DashboardShell() {
   useEffect(() => {
     if (data?.challenge?.status === "passed" && !passedModalShown.current) {
       passedModalShown.current = true;
-      setPopupMessage("✅ Wake-up verified! After tonight's round closes (UTC 23:00), your stake + reward will be added to your withdrawal pool. You can withdraw anytime.");
+      setPopupMessage("✅ Wake-up verified! After tonight's round closes (UTC 23:00), your stake + reward (after 5% platform fee) will be added to your withdrawal pool. You can withdraw anytime.");
     }
   }, [data?.challenge?.status]);
   useEffect(() => {
@@ -348,7 +350,7 @@ export function DashboardShell() {
       )
         .then(async () => {
           await refresh();
-          setPopupMessage("✅ Wake-up verified! Your stake + reward will be credited to your withdrawal pool after tonight's round closes (UTC 23:00). You can withdraw anytime from the app.");
+          setPopupMessage("✅ Wake-up verified! After tonight's round closes (UTC 23:00), your stake + reward will be credited to your withdrawal pool. Note: a 5% platform fee is deducted from the losers' pool before distribution. You can withdraw anytime.");
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Check-in failed";
@@ -470,7 +472,7 @@ export function DashboardShell() {
           <div className="panel kpi">
             <div className="label">My Net Profit</div>
             <div className="value mono">
-              {data ? formatTon(data.user?.netProfitTon ?? 0) : "--"}
+              {data ? formatTon(data.pendingWithdrawTon ?? data.user?.netProfitTon ?? 0) : "--"}
             </div>
             <div className="muted">
               Tied to your Telegram ID and TON wallet.
@@ -602,22 +604,21 @@ export function DashboardShell() {
               </span>
             </button>
 
-            {/* Withdraw — only shown when there's profit */}
+            {/* Withdraw */}
             {canWithdraw && (
               <>
                 <div className="separator" />
                 <button
                   className="button ghost"
-                  style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem" }}
+                  style={{ width: "100%", justifyContent: "flex-start", gap: "0.6rem", opacity: withdrawableTon <= 0 ? 0.5 : 1 }}
                   onClick={withdraw}
-                  disabled={pending}
+                  disabled={pending || withdrawableTon <= 0}
                 >
                   <span style={{ fontSize: "1.1rem" }}>🏦</span>
                   <span>
                     <strong>Withdraw Winnings</strong>
                     <span className="muted" style={{ display: "block", fontSize: "0.78rem" }}>
-                      {formatTon(data?.user?.netProfitTon ?? 0)} available to
-                      withdraw
+                      {formatTon(withdrawableTon)} TON available · after 5% platform fee
                     </span>
                   </span>
                 </button>
