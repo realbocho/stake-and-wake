@@ -360,6 +360,8 @@ export async function settleByTimezone() {
           myStakeTon: Number(winner.stake_amount_ton),
           totalSuccessStakeTon
         });
+        // 원금(stake_amount_ton) + 보상(losers pool 분배분)을 합산해 반환
+        const totalReturn = reward + Number(winner.stake_amount_ton);
 
         await transaction`
           update challenge_participation
@@ -369,7 +371,7 @@ export async function settleByTimezone() {
 
         await transaction`
           update app_user
-          set net_profit_ton = net_profit_ton + ${reward}
+          set net_profit_ton = net_profit_ton + ${totalReturn}
           where id = ${winner.user_id}
         `;
       }
@@ -462,6 +464,8 @@ export async function settleTodayChallenge(challengeDate?: string) {
         myStakeTon: Number(winner.stake_amount_ton),
         totalSuccessStakeTon
       });
+      // 원금(stake_amount_ton) + 보상(losers pool 분배분)을 합산해 반환
+      const totalReturn = reward + Number(winner.stake_amount_ton);
 
       await transaction`
         update challenge_participation
@@ -471,7 +475,7 @@ export async function settleTodayChallenge(challengeDate?: string) {
 
       await transaction`
         update app_user
-        set net_profit_ton = net_profit_ton + ${reward}
+        set net_profit_ton = net_profit_ton + ${totalReturn}
         where id = ${winner.user_id}
       `;
     }
