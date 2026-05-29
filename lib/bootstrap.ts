@@ -9,8 +9,8 @@ import {
 import { env } from "@/lib/env";
 import { TonClient, Address } from "@ton/ton";
 
-async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number> {
-  if (!walletAddress) return 0;
+async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number | null> {
+  if (!walletAddress) return null;
   try {
     const client = new TonClient({
       endpoint: process.env.TON_NETWORK === "mainnet"
@@ -30,7 +30,7 @@ async function getPendingWithdrawTon(walletAddress: string | null | undefined): 
     return Number(nanotons) / 1e9;
   } catch (e) {
     console.error("[getPendingWithdraw] error:", e instanceof Error ? e.message : e);
-    return 0;
+    return null;
   }
 }
 
