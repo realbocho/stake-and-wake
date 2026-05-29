@@ -104,7 +104,21 @@ contract StakeWakeVault with Ownable {
     receive(msg: OpenRound) {
         self.requireOwner();
         throwUnless(201, !self.roundOpen);
-        throwUnless(202, self.currentRoundId == 0 || self.paidSuccessCount == self.successCount);
+        // 미Claim winner가 있어도 closesAt + 24시간 이후면 오픈 허용
+        throwUnless(202, self.currentRoundId == 0
+            || self.paidSuccessCount == self.successCount
+            || now() > self.closesAt + 86400);
+
+        // 미Claim winner의 보상을 failedPool로 이동 (다음 라운드 pool로 편입)
+        if (self.roundFinalized && self.paidSuccessCount < self.successCount) {
+            let unclaimedCount: Int = self.successCount - self.paidSuccessCount;
+            let unclaimedPool: Int = 0;
+            if (self.totalSuccessStake > 0) {
+                // 미Claim 비율만큼 distributablePool에서 회수
+                unclaimedPool = self.distributablePool * (self.totalSuccessStake - self.totalSuccessStake * self.paidSuccessCount / self.successCount) / self.totalSuccessStake;
+            }
+            self.failedPool += unclaimedPool;
+        }
 
         self.currentRoundId = msg.roundId;
         self.roundOpen = true;
@@ -214,7 +228,6 @@ contract StakeWakeVault with Ownable {
 
     receive(msg: EmergencyWithdraw) {
         self.requireOwner();
-        // failedPool 잔액 이내에서만 출금 허용
         throwUnless(230, msg.amount > 0);
         throwUnless(231, msg.amount <= self.failedPool);
         self.failedPool -= msg.amount;
