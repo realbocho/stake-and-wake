@@ -1,23 +1,6 @@
 import { ok, fail } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { findUserById } from "@/lib/repositories/users";
-import { getActiveChallengeForUser } from "@/lib/repositories/challenges";
-import { env } from "@/lib/env";
-import { toNanoTon, encodeBase64 } from "@/lib/ton";
-import { beginCell } from "@ton/core";
-
-const CLAIM_OPCODE = 1504906600; // 0x59a1c3e8
-
-function buildClaimPayload(roundId: number): string {
-  return encodeBase64(
-    beginCell()
-      .storeUint(CLAIM_OPCODE, 32)
-      .storeUint(0, 64)
-      .storeUint(roundId, 32)
-      .endCell()
-      .toBoc()
-  );
-}
 
 export async function POST() {
   const session = await getSession();
@@ -26,25 +9,15 @@ export async function POST() {
   try {
     const user = await findUserById(session.userId);
     if (!user) return fail("User not found", 404);
-    if (!user.walletAddress) return fail("Please connect your wallet first.", 400);
 
     const withdrawableTon = user.netProfitTon ?? 0;
     if (withdrawableTon <= 0) return fail("No balance available to withdraw.", 400);
 
-    const challenge = await getActiveChallengeForUser(session.userId);
-    if (!challenge) return fail("No active challenge found.", 400);
-
-    const roundId = challenge.onChainRoundId;
-    if (!roundId || roundId === 0) {
-      return fail("Round ID not configured. Contact support.", 500);
-    }
-
+    // finalize-round cron이 자동으로 온체인 전송 처리
+    // 여기서는 잔액 확인만
     return ok({
-      to: env.stakeVaultAddress,
-      amountNano: toNanoTon(0.05).toString(),
       withdrawableTon,
-      payload: buildClaimPayload(roundId),
-      validUntil: Math.floor(Date.now() / 1000) + 300
+      message: "Your reward will be sent to your wallet automatically after the round is finalized.",
     });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Withdrawal failed.";
