@@ -26,6 +26,22 @@ async function getContractRoundId(client: TonClient, vaultAddress: string): Prom
   }
 }
 
+// 트랜잭션 성공 후 컨트랙트 roundId가 실제로 바뀌었는지 확인 (최대 30초 대기)
+async function waitForRoundId(
+  client: TonClient,
+  vaultAddress: string,
+  expectedRoundId: number,
+  maxWaitMs = 30000
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    await new Promise(r => setTimeout(r, 3000));
+    const current = await getContractRoundId(client, vaultAddress);
+    if (current === expectedRoundId) return true;
+  }
+  return false;
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const adminKey = request.headers.get("x-admin-key");
@@ -39,10 +55,7 @@ export async function GET(request: Request) {
 
   const mnemonic = process.env.OWNER_MNEMONIC?.split(" ");
   if (!mnemonic || mnemonic.length < 24) {
-    return NextResponse.json(
-      { error: "OWNER_MNEMONIC 환경변수가 설정되지 않았습니다." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "OWNER_MNEMONIC 없음" }, { status: 500 });
   }
 
   const closesAt = getClosesAt();
@@ -50,7 +63,6 @@ export async function GET(request: Request) {
   try {
     const sql = getSql();
 
-    // 오늘 challenge 확인
     const [challenge] = await sql<{ id: string; on_chain_round_id: number }[]>`
       select id, on_chain_round_id from challenge
       where challenge_date = current_date
@@ -69,55 +81,65 @@ export async function GET(request: Request) {
       apiKey: process.env.TONCENTER_API_KEY,
     });
 
-    // 컨트랙트에서 현재 roundId 조회
+    // 컨트랙트 현재 roundId 조회
     const contractRoundId = await getContractRoundId(client, env.stakeVaultAddress);
-    // 다음 roundId = 현재 + 1
     const nextRoundId = contractRoundId + 1;
 
-    // DB에 이미 같은 roundId가 설정돼 있으면 이미 열린 것
-    if (challenge.on_chain_round_id === nextRoundId) {
-      console.log(`[cron/open-round] 이미 처리됨. roundId=${nextRoundId}, skip.`);
-      return NextResponse.json({ ok: true, skipped: true, reason: "already processed", roundId: nextRoundId });
+    // DB roundId와 컨트랙트 roundId가 이미 일치하면 skip
+    if (challenge.on_chain_round_id === contractRoundId && contractRoundId > 0) {
+      console.log(`[cron/open-round] 이미 처리됨. roundId=${contractRoundId}, skip.`);
+      return NextResponse.json({ ok: true, skipped: true, reason: "already processed", roundId: contractRoundId });
     }
 
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const walletAddress = wallet.address.toString({ bounceable: false });
-    console.log(`[cron/open-round] wallet: ${walletAddress}, nextRoundId: ${nextRoundId}`);
-
     const contract = client.open(wallet);
     const seqno = await contract.getSeqno();
 
     const body = beginCell()
       .storeUint(OPEN_ROUND_OPCODE, 32)
-      .storeUint(0, 64)                  // queryId
-      .storeUint(nextRoundId, 32)        // roundId
-      .storeCoins(toNano("0.5"))         // minStake
-      .storeUint(closesAt, 32)           // closesAt
+      .storeUint(0, 64)
+      .storeUint(nextRoundId, 32)
+      .storeCoins(toNano("0.5"))
+      .storeUint(closesAt, 32)
       .endCell();
 
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
-      messages: [
-        internal({
-          to: Address.parse(env.stakeVaultAddress),
-          value: toNano("0.05"),
-          bounce: false,
-          body,
-        }),
-      ],
+      messages: [internal({
+        to: Address.parse(env.stakeVaultAddress),
+        value: toNano("0.05"),
+        bounce: false,
+        body,
+      })],
     });
 
-    // DB의 on_chain_round_id 업데이트
-    await sql`
-      update challenge
-      set on_chain_round_id = ${nextRoundId}
-      where challenge_date = current_date
-    `;
+    console.log(`[cron/open-round] OpenRound tx sent: nextRoundId=${nextRoundId}, seqno=${seqno}`);
 
-    console.log(`[cron/open-round] OpenRound sent & DB updated: roundId=${nextRoundId}, seqno=${seqno}`);
-    return NextResponse.json({ ok: true, skipped: false, roundId: nextRoundId, closesAt, seqno, walletAddress });
+    // 컨트랙트에 실제로 반영됐는지 확인 후 DB 업데이트
+    const confirmed = await waitForRoundId(client, env.stakeVaultAddress, nextRoundId);
+
+    if (confirmed) {
+      await sql`
+        update challenge
+        set on_chain_round_id = ${nextRoundId}
+        where challenge_date = current_date
+      `;
+      console.log(`[cron/open-round] confirmed & DB updated: roundId=${nextRoundId}`);
+      return NextResponse.json({ ok: true, skipped: false, roundId: nextRoundId, closesAt, seqno, walletAddress });
+    } else {
+      // 트랜잭션은 보냈지만 컨트랙트가 아직 안 바뀜 (실패했을 가능성)
+      // DB는 업데이트하지 않음 → 다음 cron 실행 시 재시도
+      console.error(`[cron/open-round] tx sent but contract roundId not updated after 30s`);
+      return NextResponse.json({
+        ok: false,
+        error: "Tx sent but not confirmed on-chain within 30s. DB not updated. Will retry next run.",
+        roundId: nextRoundId,
+        seqno,
+      }, { status: 202 });
+    }
 
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "OpenRound 실패";
