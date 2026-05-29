@@ -46,6 +46,15 @@ export default function WakeSuccessModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: "rgba(0, 0, 0, 0.85)" }}
+      onClick={() => {
+        if (hasReward && onClaim) {
+          if (window.confirm("⚠️ Are you sure you want to leave?\n\nIf you close this without claiming, your reward will be permanently forfeited and added to the next round's prize pool. This cannot be undone.")) {
+            onForfeit?.();
+          }
+        } else {
+          onClose();
+        }
+      }}
     >
       <div
         className="relative mx-4 w-full max-w-sm rounded-2xl p-6 text-center"
