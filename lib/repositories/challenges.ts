@@ -107,7 +107,6 @@ export async function getOrCreateTonightChallenge() {
   `;
   if (existing) return mapChallenge(existing);
 
-  // on_chain_round_id는 cron(open-round)이 OpenRound 전송 후 업데이트함
   const onChainRoundId = 0;
 
   const id = randomUUID();
@@ -310,7 +309,8 @@ export async function settleByTimezone() {
     const tz = p.user_timezone ?? "UTC";
     const localMins = getLocalMinutes(tz);
     if (p.status === "sleep_locked") return false;
-    return localMins >= 7 * 60;
+    if (p.status === "passed") return false;
+    return localMins >= 6 * 60;
   });
 
   if (toSettle.length === 0) return { settled: 0 };
