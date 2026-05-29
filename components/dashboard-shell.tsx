@@ -150,17 +150,11 @@ export function DashboardShell() {
   }, [data?.challenge?.status]);
 
 
-  // passed 상태 감지 시 Wake Modal 자동 오픈 (한 번만)
+  // passed 상태: 모달 대신 팝업으로만 안내 (모달은 overflow:hidden으로 스크롤 막힘 유발)
   useEffect(() => {
     if (data?.challenge?.status === "passed" && !passedModalShown.current) {
       passedModalShown.current = true;
-      setWakeModal({
-        isOpen: true,
-        rewardTon: 0,
-        onChainRoundId: data.challenge.onChainRoundId ?? null,
-        challengeId: data.challenge.id ?? null,
-        claimPending: false,
-      });
+      setPopupMessage("✅ Wake-up verified! Your reward will be available to claim after the round is finalized.");
     }
   }, [data?.challenge?.status]);
   useEffect(() => {
