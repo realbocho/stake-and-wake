@@ -28,7 +28,8 @@ async function getPendingWithdrawTon(walletAddress: string | null | undefined): 
     );
     const nanotons = result.stack.readBigNumber();
     return Number(nanotons) / 1e9;
-  } catch {
+  } catch (e) {
+    console.error("[getPendingWithdraw] error:", e instanceof Error ? e.message : e);
     return 0;
   }
 }
