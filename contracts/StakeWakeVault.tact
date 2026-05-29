@@ -109,15 +109,22 @@ contract StakeWakeVault with Ownable {
             || self.paidSuccessCount == self.successCount
             || now() > self.closesAt + 86400);
 
-        // 미Claim winner의 보상을 failedPool로 이동 (다음 라운드 pool로 편입)
-        if (self.roundFinalized && self.paidSuccessCount < self.successCount) {
-            let unclaimedCount: Int = self.successCount - self.paidSuccessCount;
-            let unclaimedPool: Int = 0;
-            if (self.totalSuccessStake > 0) {
-                // 미Claim 비율만큼 distributablePool에서 회수
-                unclaimedPool = self.distributablePool * (self.totalSuccessStake - self.totalSuccessStake * self.paidSuccessCount / self.successCount) / self.totalSuccessStake;
+        // 이월 처리
+        let carryOver: Int = 0;
+
+        if (self.roundFinalized) {
+            // 1. 성공자가 없으면 distributablePool 전액 이월
+            if (self.successCount == 0) {
+                carryOver = carryOver + self.distributablePool;
             }
-            self.failedPool += unclaimedPool;
+
+            // 2. 미Claim winner의 보상 이월 (closesAt + 24시간 강제 오픈 시)
+            if (self.paidSuccessCount < self.successCount && self.totalSuccessStake > 0) {
+                let claimedStake: Int = self.totalSuccessStake * self.paidSuccessCount / self.successCount;
+                let unclaimedStake: Int = self.totalSuccessStake - claimedStake;
+                let unclaimedReward: Int = self.distributablePool * unclaimedStake / self.totalSuccessStake;
+                carryOver = carryOver + unclaimedReward;
+            }
         }
 
         self.currentRoundId = msg.roundId;
@@ -126,7 +133,7 @@ contract StakeWakeVault with Ownable {
         self.minStake = msg.minStake;
         self.closesAt = msg.closesAt;
         self.totalStaked = 0;
-        self.failedPool = 0;
+        self.failedPool = carryOver; // 이월금으로 시작
         self.totalSuccessStake = 0;
         self.distributablePool = 0;
         self.successCount = 0;
@@ -257,5 +264,23 @@ contract StakeWakeVault with Ownable {
 
     get fun getPlatformFeesAccrued(): Int {
         return self.platformFeesAccrued;
+    }
+
+    get fun getCarryOverPreview(): Int {
+        // 다음 라운드로 이월될 금액 미리보기
+        if (!self.roundFinalized) {
+            return 0;
+        }
+        let carryOver: Int = 0;
+        if (self.successCount == 0) {
+            carryOver = carryOver + self.distributablePool;
+        }
+        if (self.paidSuccessCount < self.successCount && self.totalSuccessStake > 0) {
+            let claimedStake: Int = self.totalSuccessStake * self.paidSuccessCount / self.successCount;
+            let unclaimedStake: Int = self.totalSuccessStake - claimedStake;
+            let unclaimedReward: Int = self.distributablePool * unclaimedStake / self.totalSuccessStake;
+            carryOver = carryOver + unclaimedReward;
+        }
+        return carryOver;
     }
 }
