@@ -33,7 +33,6 @@ export async function GET(request: Request) {
     `;
 
     if (!challenge) return NextResponse.json({ error: "오늘 challenge 없음" }, { status: 400 });
-    if (challenge.status === "settled") return NextResponse.json({ ok: true, skipped: true, reason: "already settled" });
     if (!challenge.on_chain_round_id) return NextResponse.json({ error: "roundId 없음" }, { status: 400 });
 
     const roundId = challenge.on_chain_round_id;
