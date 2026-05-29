@@ -142,10 +142,10 @@ export function DashboardShell() {
     });
   }, [refresh]);
 
-  // 챌린지 실패 시 팝업
+  // Failure popup
   useEffect(() => {
     if (data?.challenge?.status === "failed") {
-      setPopupMessage("😔 You failed today's challenge. Your stake has been distributed to successful participants.");
+      setPopupMessage("😔 You failed today's challenge. Your stake has been distributed to the winners.");
     }
   }, [data?.challenge?.status]);
 
@@ -154,7 +154,7 @@ export function DashboardShell() {
   useEffect(() => {
     if (data?.challenge?.status === "passed" && !passedModalShown.current) {
       passedModalShown.current = true;
-      setPopupMessage("✅ Wake-up verified! Your reward will be available to claim after the round is finalized.");
+      setPopupMessage("✅ Wake-up verified! After tonight's round closes (UTC 23:00), your stake + reward will be added to your withdrawal pool. You can withdraw anytime.");
     }
   }, [data?.challenge?.status]);
   useEffect(() => {
@@ -302,7 +302,7 @@ export function DashboardShell() {
         body: JSON.stringify({ deviceId: getDeviceFingerprint() })
       })
         .then(() => {
-          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.\n\n⚠️ Make sure to complete your wake-up check-in during your designated time window. If you miss it, your stake will be distributed to successful participants.");
+          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.\n\nMake sure to complete your wake-up check-in during your designated time window. If you miss it, your stake will be distributed to successful participants.");
           return refresh();
         })
         .catch((cause: unknown) => {
@@ -348,7 +348,7 @@ export function DashboardShell() {
       )
         .then(async () => {
           await refresh();
-          setPopupMessage("✅ Wake-up verified! Your stake + reward will be sent to your wallet automatically after the round is finalized.");
+          setPopupMessage("✅ Wake-up verified! Your stake + reward will be credited to your withdrawal pool after tonight's round closes (UTC 23:00). You can withdraw anytime from the app.");
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Check-in failed";
