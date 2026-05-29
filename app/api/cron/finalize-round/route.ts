@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { getSql } from "@/lib/db";
 
 const FINALIZE_ROUND_OPCODE = 2016600536; // 0x78277dd8
+const CREDIT_WINNER_OPCODE  = 2221878711; // 0x8455b5b7
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -35,26 +36,21 @@ export async function GET(request: Request) {
     if (challenge.status === "settled") return NextResponse.json({ ok: true, skipped: true, reason: "already settled" });
     if (!challenge.on_chain_round_id) return NextResponse.json({ error: "roundId 없음" }, { status: 400 });
 
-    // settled 상태 winner 목록 조회 (net_profit_ton 이미 적립된 유저)
+    const roundId = challenge.on_chain_round_id;
+
+    // winner 목록 조회 (on_chain_credited = false인 것만)
     const winners = await sql<{
       user_id: string;
       wallet_address: string;
-      stake_amount_ton: number;
-      settled_reward_ton: number;
     }[]>`
-      select p.user_id, u.wallet_address,
-             p.stake_amount_ton, p.settled_reward_ton
+      select p.user_id, u.wallet_address
       from challenge_participation p
       join app_user u on u.id = p.user_id
       where p.challenge_id = ${challenge.id}
         and p.status = 'settled'
+        and p.on_chain_credited = false
         and u.wallet_address is not null
-        and p.on_chain_paid = false
     `;
-
-    if (winners.length === 0) {
-      return NextResponse.json({ ok: true, skipped: true, reason: "no winners to pay" });
-    }
 
     const client = new TonClient({
       endpoint: process.env.TON_NETWORK === "mainnet"
@@ -66,17 +62,14 @@ export async function GET(request: Request) {
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const contract = client.open(wallet);
-    const roundId = challenge.on_chain_round_id;
+    const vaultAddr = Address.parse(env.stakeVaultAddress);
 
-    // 1. FinalizeRound 온체인 전송
+    // 1. FinalizeRound
     let seqno = await contract.getSeqno();
     await contract.sendTransfer({
-      secretKey: keyPair.secretKey,
-      seqno,
+      secretKey: keyPair.secretKey, seqno,
       messages: [internal({
-        to: Address.parse(env.stakeVaultAddress),
-        value: toNano("0.05"),
-        bounce: false,
+        to: vaultAddr, value: toNano("0.05"), bounce: false,
         body: beginCell()
           .storeUint(FINALIZE_ROUND_OPCODE, 32)
           .storeUint(0, 64)
@@ -86,36 +79,37 @@ export async function GET(request: Request) {
     });
     console.log(`[finalize-round] FinalizeRound sent, seqno=${seqno}`);
 
-    // 2. 각 winner에게 원금 + 보상 직접 전송
-    let paid = 0;
+    // 2. CreditWinner 각 winner에게
+    let credited = 0;
     for (const winner of winners) {
       await new Promise(r => setTimeout(r, 2000));
       seqno = await contract.getSeqno();
-      const totalTon = Number(winner.stake_amount_ton) + Number(winner.settled_reward_ton);
 
       await contract.sendTransfer({
-        secretKey: keyPair.secretKey,
-        seqno,
+        secretKey: keyPair.secretKey, seqno,
         messages: [internal({
-          to: Address.parse(winner.wallet_address),
-          value: toNano(totalTon.toFixed(9)),
-          bounce: false,
+          to: vaultAddr, value: toNano("0.05"), bounce: false,
+          body: beginCell()
+            .storeUint(CREDIT_WINNER_OPCODE, 32)
+            .storeUint(0, 64)
+            .storeUint(roundId, 32)
+            .storeAddress(Address.parse(winner.wallet_address))
+            .endCell(),
         })],
       });
 
-      // on_chain_paid 플래그 업데이트
       await sql`
         update challenge_participation
-        set on_chain_paid = true
+        set on_chain_credited = true
         where challenge_id = ${challenge.id}
           and user_id = ${winner.user_id}
       `;
 
-      console.log(`[finalize-round] Paid ${totalTon} TON to ${winner.wallet_address}`);
-      paid++;
+      console.log(`[finalize-round] CreditWinner ${winner.wallet_address}, seqno=${seqno}`);
+      credited++;
     }
 
-    return NextResponse.json({ ok: true, roundId, paid });
+    return NextResponse.json({ ok: true, roundId, credited });
 
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "finalize-round 실패";
