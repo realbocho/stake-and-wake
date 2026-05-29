@@ -7,6 +7,28 @@ import {
   getOrCreateTonightChallenge
 } from "@/lib/repositories/challenges";
 import { env } from "@/lib/env";
+import { TonClient, Address } from "@ton/ton";
+
+async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number> {
+  if (!walletAddress) return 0;
+  try {
+    const client = new TonClient({
+      endpoint: process.env.TON_NETWORK === "mainnet"
+        ? "https://toncenter.com/api/v2/jsonRPC"
+        : "https://testnet.toncenter.com/api/v2/jsonRPC",
+      apiKey: process.env.TONCENTER_API_KEY,
+    });
+    const result = await client.runMethod(
+      Address.parse(env.stakeVaultAddress),
+      "getPendingWithdraw",
+      [{ type: "slice", cell: new (require("@ton/core").Builder)().storeAddress(Address.parse(walletAddress)).endCell() }]
+    );
+    const nanotons = result.stack.readBigNumber();
+    return Number(nanotons) / 1e9;
+  } catch {
+    return 0;
+  }
+}
 
 export async function loadBootstrap() {
   const base = getFallbackBootstrap();
@@ -25,12 +47,15 @@ export async function loadBootstrap() {
     getReferralBalance(session.userId)
   ]);
 
+  const pendingWithdrawTon = await getPendingWithdrawTon(user?.walletAddress);
+
   return {
     ...base,
     user,
     challenge,
     leaderboard,
     referralBalanceTon,
+    pendingWithdrawTon,
     dailyFeeTon: env.dailyFeeTon
   };
 }
