@@ -302,7 +302,7 @@ export function DashboardShell() {
         body: JSON.stringify({ deviceId: getDeviceFingerprint() })
       })
         .then(() => {
-          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.\n\n⚠️ After waking up, you must Claim your reward immediately. If you close the popup without claiming, your reward will be permanently forfeited to the next round's prize pool.");
+          setPopupMessage("Sleep lock enabled! Good night. 🌙 See you in the morning.\n\n⚠️ Make sure to complete your wake-up check-in during your designated time window. If you miss it, your stake will be distributed to successful participants.");
           return refresh();
         })
         .catch((cause: unknown) => {
@@ -346,16 +346,9 @@ export function DashboardShell() {
           })
         }
       )
-        .then(async (result) => {
+        .then(async () => {
           await refresh();
-          // 성공 모달 열기 — 클레임 or 포기 선택
-          setWakeModal({
-            isOpen: true,
-            rewardTon: result.settledRewardTon ?? 0,
-            onChainRoundId: result.onChainRoundId,
-            challengeId: data?.challenge.id ?? null,
-            claimPending: false,
-          });
+          setPopupMessage("✅ Wake-up verified! Your stake + reward will be sent to your wallet automatically after the round is finalized.");
         })
         .catch((cause: unknown) => {
           const message = cause instanceof Error ? cause.message : "Check-in failed";
@@ -364,40 +357,7 @@ export function DashboardShell() {
     });
   };
 
-  const handleClaim = async () => {
-    const { onChainRoundId, challengeId } = wakeModal;
-    if (!onChainRoundId || !challengeId) return;
 
-    setWakeModal((m) => ({ ...m, claimPending: true }));
-
-    try {
-      const { beginCell } = await import("@ton/core");
-      const CLAIM_OPCODE = 1504906600; // 0x59a1c3e8
-      const payload = beginCell()
-        .storeUint(CLAIM_OPCODE, 32)
-        .storeUint(0, 64)
-        .storeUint(onChainRoundId, 32)
-        .endCell()
-        .toBoc()
-        .toString("base64url");
-
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{
-          address: process.env.NEXT_PUBLIC_STAKE_VAULT_ADDRESS ?? "",
-          amount: "50000000",
-          payload,
-        }]
-      });
-
-      setWakeModal((m) => ({ ...m, isOpen: false, claimPending: false }));
-      setPopupMessage("🎉 Claim submitted! Your stake + reward is on the way.");
-      await refresh();
-    } catch {
-      // 거절하거나 실패하면 → 포기 처리
-      await handleForfeit();
-    }
-  };
 
   const handleForfeit = async () => {
     const { challengeId } = wakeModal;
@@ -826,9 +786,7 @@ export function DashboardShell() {
         targetTime={data?.challenge.wakeTime}
         checkedInAt={new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         streakDays={data?.user?.successStreak ?? 1}
-        onClaim={handleClaim}
         onForfeit={handleForfeit}
-        claimPending={wakeModal.claimPending}
       />
 
       {/* ── TIME GUARD POPUP ── */}
