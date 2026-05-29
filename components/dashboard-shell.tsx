@@ -1,7 +1,7 @@
 "use client";
 
 import { TonConnectButton, useTonAddress } from "@tonconnect/ui-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useTonConnectUI } from "@tonconnect/ui-react";
 import type {
   ChallengeView,
@@ -102,6 +102,7 @@ const DEFAULT_DURATION_DAYS = 7;
 export function DashboardShell() {
   const [tonConnectUI] = useTonConnectUI();
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const passedModalShown = useRef(false);
   const [pending, startTransition] = useTransition();
   const [stakeAmount, setStakeAmount] = useState("1");
   const [wakeTime, setWakeTime] = useState("05:30");
@@ -149,9 +150,10 @@ export function DashboardShell() {
   }, [data?.challenge?.status]);
 
 
-  // passed 상태 감지 시 Wake Modal 자동 오픈
+  // passed 상태 감지 시 Wake Modal 자동 오픈 (한 번만)
   useEffect(() => {
-    if (data?.challenge?.status === "passed" && !wakeModal.isOpen) {
+    if (data?.challenge?.status === "passed" && !passedModalShown.current) {
+      passedModalShown.current = true;
       setWakeModal({
         isOpen: true,
         rewardTon: 0,
