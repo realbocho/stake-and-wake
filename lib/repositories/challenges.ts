@@ -88,7 +88,8 @@ export async function getActiveChallengeForUser(userId: string) {
     from challenge_participation p
     join challenge c on c.id = p.challenge_id
     where p.user_id = ${userId}
-      and c.challenge_date = current_date
+      and c.challenge_date >= current_date - interval '1 day'
+    order by c.challenge_date desc
     limit 1
   `;
   return row ? mapChallenge(row) : null;
