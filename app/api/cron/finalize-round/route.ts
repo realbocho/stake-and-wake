@@ -20,19 +20,41 @@ export async function GET(request: Request) {
   try {
     const sql = getSql();
 
-    // 전날 challenge 조회
-    const [challenge] = await sql<{ on_chain_round_id: number; status: string }[]>`
-      select on_chain_round_id, status
+    const [challenge] = await sql<{
+      id: string;
+      on_chain_round_id: number;
+      status: string;
+    }[]>`
+      select id, on_chain_round_id, status
       from challenge
-      where challenge_date = current_date - interval '1 day'
+      where challenge_date = current_date
       limit 1
     `;
 
-    if (!challenge) return NextResponse.json({ error: "전날 challenge 없음" }, { status: 400 });
-    if (challenge.status !== "settled") return NextResponse.json({ error: "close-round를 먼저 실행하세요" }, { status: 400 });
+    if (!challenge) return NextResponse.json({ error: "오늘 challenge 없음" }, { status: 400 });
+    if (challenge.status === "settled") return NextResponse.json({ ok: true, skipped: true, reason: "already settled" });
     if (!challenge.on_chain_round_id) return NextResponse.json({ error: "roundId 없음" }, { status: 400 });
 
-    const roundId = challenge.on_chain_round_id;
+    // settled 상태 winner 목록 조회 (net_profit_ton 이미 적립된 유저)
+    const winners = await sql<{
+      user_id: string;
+      wallet_address: string;
+      stake_amount_ton: number;
+      settled_reward_ton: number;
+    }[]>`
+      select p.user_id, u.wallet_address,
+             p.stake_amount_ton, p.settled_reward_ton
+      from challenge_participation p
+      join app_user u on u.id = p.user_id
+      where p.challenge_id = ${challenge.id}
+        and p.status = 'settled'
+        and u.wallet_address is not null
+        and p.on_chain_paid = false
+    `;
+
+    if (winners.length === 0) {
+      return NextResponse.json({ ok: true, skipped: true, reason: "no winners to pay" });
+    }
 
     const client = new TonClient({
       endpoint: process.env.TON_NETWORK === "mainnet"
@@ -44,8 +66,10 @@ export async function GET(request: Request) {
     const keyPair = await mnemonicToPrivateKey(mnemonic);
     const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
     const contract = client.open(wallet);
-    const seqno = await contract.getSeqno();
+    const roundId = challenge.on_chain_round_id;
 
+    // 1. FinalizeRound 온체인 전송
+    let seqno = await contract.getSeqno();
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
@@ -60,13 +84,42 @@ export async function GET(request: Request) {
           .endCell(),
       })],
     });
+    console.log(`[finalize-round] FinalizeRound sent, seqno=${seqno}`);
 
-    console.log(`[cron/finalize-round] FinalizeRound sent: roundId=${roundId}, seqno=${seqno}`);
-    return NextResponse.json({ ok: true, roundId, seqno });
+    // 2. 각 winner에게 원금 + 보상 직접 전송
+    let paid = 0;
+    for (const winner of winners) {
+      await new Promise(r => setTimeout(r, 2000));
+      seqno = await contract.getSeqno();
+      const totalTon = Number(winner.stake_amount_ton) + Number(winner.settled_reward_ton);
+
+      await contract.sendTransfer({
+        secretKey: keyPair.secretKey,
+        seqno,
+        messages: [internal({
+          to: Address.parse(winner.wallet_address),
+          value: toNano(totalTon.toFixed(9)),
+          bounce: false,
+        })],
+      });
+
+      // on_chain_paid 플래그 업데이트
+      await sql`
+        update challenge_participation
+        set on_chain_paid = true
+        where challenge_id = ${challenge.id}
+          and user_id = ${winner.user_id}
+      `;
+
+      console.log(`[finalize-round] Paid ${totalTon} TON to ${winner.wallet_address}`);
+      paid++;
+    }
+
+    return NextResponse.json({ ok: true, roundId, paid });
 
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "finalize-round 실패";
-    console.error("[cron/finalize-round] error:", message);
+    console.error("[finalize-round] error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
