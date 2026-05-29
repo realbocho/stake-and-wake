@@ -18,10 +18,13 @@ async function getPendingWithdrawTon(walletAddress: string | null | undefined): 
         : "https://testnet.toncenter.com/api/v2/jsonRPC",
       apiKey: process.env.TONCENTER_API_KEY,
     });
+    const { TupleBuilder } = require("@ton/core");
+    const tb = new TupleBuilder();
+    tb.writeAddress(Address.parse(walletAddress));
     const result = await client.runMethod(
       Address.parse(env.stakeVaultAddress),
       "getPendingWithdraw",
-      [{ type: "slice", cell: new (require("@ton/core").Builder)().storeAddress(Address.parse(walletAddress)).endCell() }]
+      tb.build()
     );
     const nanotons = result.stack.readBigNumber();
     return Number(nanotons) / 1e9;
