@@ -9,8 +9,8 @@ import {
 import { env } from "@/lib/env";
 import { TonClient, Address } from "@ton/ton";
 
-async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number | null> {
-  if (!walletAddress) return null;
+async function getPendingWithdrawTon(walletAddress: string | null | undefined): Promise<number> {
+  if (!walletAddress) return 0;
   try {
     const client = new TonClient({
       endpoint: process.env.TON_NETWORK === "mainnet"
@@ -27,10 +27,11 @@ async function getPendingWithdrawTon(walletAddress: string | null | undefined): 
       tb.build()
     );
     const nanotons = result.stack.readBigNumber();
+    console.log("[getPendingWithdraw] nanotons:", nanotons.toString(), "TON:", Number(nanotons) / 1e9);
     return Number(nanotons) / 1e9;
   } catch (e) {
     console.error("[getPendingWithdraw] error:", e instanceof Error ? e.message : e);
-    return null;
+    return 0;
   }
 }
 
@@ -42,22 +43,16 @@ export async function loadBootstrap() {
   // [수정] try/catch 제거 — catch에서 fallback으로 빠지면 challenge.id가
   // "demo-challenge-..." 가짜 값이 되어 check-in 시 "Participation record not found"
   // 에러가 발생함. 에러를 숨기지 않고 클라이언트에 그대로 노출.
-  const [user, leaderboard, referralBalanceTon] = await Promise.all([
+  const [user, challenge, leaderboard, referralBalanceTon] = await Promise.all([
     findUserById(session.userId),
+    getActiveChallengeForUser(session.userId).then(
+      (value) => value ?? getOrCreateTonightChallenge()
+    ),
     getLeaderboard(),
     getReferralBalance(session.userId)
   ]);
 
-  const activeChallenge = await getActiveChallengeForUser(session.userId);
-  const challenge = activeChallenge?.status === "settled" || activeChallenge?.status === "passed"
-    ? activeChallenge
-    : activeChallenge ?? await getOrCreateTonightChallenge();
-
-  const onChainPending = await getPendingWithdrawTon(user?.walletAddress);
-  // 온체인 조회 실패(null) 시 DB의 net_profit_ton을 fallback으로 사용
-  const pendingWithdrawTon = onChainPending !== null
-    ? onChainPending
-    : (user?.netProfitTon ?? 0);
+  const pendingWithdrawTon = await getPendingWithdrawTon(user?.walletAddress);
 
   return {
     ...base,
