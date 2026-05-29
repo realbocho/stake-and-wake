@@ -148,6 +148,19 @@ export function DashboardShell() {
     }
   }, [data?.challenge?.status]);
 
+
+  // passed 상태 감지 시 Wake Modal 자동 오픈
+  useEffect(() => {
+    if (data?.challenge?.status === "passed" && !wakeModal.isOpen) {
+      setWakeModal({
+        isOpen: true,
+        rewardTon: 0,
+        onChainRoundId: data.challenge.onChainRoundId ?? null,
+        challengeId: data.challenge.id ?? null,
+        claimPending: false,
+      });
+    }
+  }, [data?.challenge?.status]);
   useEffect(() => {
     const initData = getTelegramInitData();
     if (!initData || authenticated) return;
