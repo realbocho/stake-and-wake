@@ -42,14 +42,16 @@ export async function loadBootstrap() {
   // [수정] try/catch 제거 — catch에서 fallback으로 빠지면 challenge.id가
   // "demo-challenge-..." 가짜 값이 되어 check-in 시 "Participation record not found"
   // 에러가 발생함. 에러를 숨기지 않고 클라이언트에 그대로 노출.
-  const [user, challenge, leaderboard, referralBalanceTon] = await Promise.all([
+  const [user, leaderboard, referralBalanceTon] = await Promise.all([
     findUserById(session.userId),
-    getActiveChallengeForUser(session.userId).then(
-      (value) => value ?? getOrCreateTonightChallenge()
-    ),
     getLeaderboard(),
     getReferralBalance(session.userId)
   ]);
+
+  const activeChallenge = await getActiveChallengeForUser(session.userId);
+  const challenge = activeChallenge?.status === "settled" || activeChallenge?.status === "passed"
+    ? activeChallenge
+    : activeChallenge ?? await getOrCreateTonightChallenge();
 
   const pendingWithdrawTon = await getPendingWithdrawTon(user?.walletAddress);
 
