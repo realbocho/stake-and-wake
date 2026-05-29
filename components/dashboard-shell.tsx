@@ -127,10 +127,9 @@ export function DashboardShell() {
 
   const canWithdraw =
     authenticated;
-  const withdrawableTon =
-    (data?.pendingWithdrawTon != null && data.pendingWithdrawTon > 0)
-      ? data.pendingWithdrawTon
-      : (data?.user?.netProfitTon ?? 0);
+  // bootstrap이 온체인 조회 실패 시 netProfitTon을 fallback으로 사용하므로
+  // pendingWithdrawTon은 항상 number. 단순히 그 값을 사용한다.
+  const withdrawableTon = data?.pendingWithdrawTon ?? 0;
 
   const refresh = useMemo(
     () => async () => {
