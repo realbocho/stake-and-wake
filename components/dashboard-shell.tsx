@@ -127,7 +127,10 @@ export function DashboardShell() {
 
   const canWithdraw =
     authenticated;
-  const withdrawableTon = data?.pendingWithdrawTon || data?.user?.netProfitTon || 0;
+  const withdrawableTon =
+    (data?.pendingWithdrawTon != null && data.pendingWithdrawTon > 0)
+      ? data.pendingWithdrawTon
+      : (data?.user?.netProfitTon ?? 0);
 
   const refresh = useMemo(
     () => async () => {
