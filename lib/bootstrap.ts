@@ -91,7 +91,7 @@ export async function loadBootstrap() {
   return {
     ...base,
     user,
-    challenge,
+    challenge: { ...challenge, poolTon: challenge.poolTon + contractPoolTon },
     leaderboard,
     referralBalanceTon,
     pendingWithdrawTon,
