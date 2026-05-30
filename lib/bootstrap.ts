@@ -63,6 +63,27 @@ export async function loadBootstrap() {
     getReferralBalance(session.userId)
   ]);
 
+  // 컨트랙트 failedPool 조회 (운영자 주입금 포함)
+  let contractPoolTon = 0;
+  try {
+    const base = process.env.TON_NETWORK === "mainnet"
+      ? "https://toncenter.com/api/v2"
+      : "https://testnet.toncenter.com/api/v2";
+    const apiKey = process.env.TONCENTER_API_KEY ?? "";
+    const resp = await fetch(`${base}/runGetMethod`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+      body: JSON.stringify({ address: env.stakeVaultAddress, method: "getFailedPool", stack: [] }),
+      cache: "no-store",
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await resp.json() as any;
+    if (data.ok && data.result?.stack?.[0]?.[1]) {
+      const nanotons = BigInt(data.result.stack[0][1].number ?? data.result.stack[0][1]);
+      contractPoolTon = Number(nanotons) / 1e9;
+    }
+  } catch { /* ignore */ }
+
   const pendingWithdrawTon = await getPendingWithdrawTon(user?.walletAddress);
 
   return {
