@@ -78,9 +78,11 @@ export async function loadBootstrap() {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await resp.json() as any;
+    console.log("[getFailedPool] raw stack:", JSON.stringify(data.result?.stack));
     if (data.ok && data.result?.stack?.[0]?.[1]) {
       const nanotons = BigInt(data.result.stack[0][1].number ?? data.result.stack[0][1]);
       contractPoolTon = Number(nanotons) / 1e9;
+      console.log("[getFailedPool] contractPoolTon:", contractPoolTon);
     }
   } catch { /* ignore */ }
 
