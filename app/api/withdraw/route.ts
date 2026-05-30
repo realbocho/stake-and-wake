@@ -27,7 +27,6 @@ export async function POST() {
     if (!user.walletAddress) return fail("Please connect your wallet first.", 400);
 
     const withdrawableTon = user.netProfitTon ?? 0;
-    if (withdrawableTon <= 0) return fail("No balance available to withdraw.", 400);
 
     return ok({
       to: env.stakeVaultAddress,
