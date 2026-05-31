@@ -26,7 +26,6 @@ async function getContractRoundId(client: TonClient, vaultAddress: string): Prom
   }
 }
 
-// 트랜잭션 성공 후 컨트랙트 roundId가 실제로 바뀌었는지 확인 (최대 30초 대기)
 async function waitForRoundId(
   client: TonClient,
   vaultAddress: string,
@@ -63,14 +62,25 @@ export async function GET(request: Request) {
   try {
     const sql = getSql();
 
-    const [challenge] = await sql<{ id: string; on_chain_round_id: number }[]>`
+    // 오늘 challenge 조회 — 없으면 자동 생성
+    let [challenge] = await sql<{ id: string; on_chain_round_id: number }[]>`
       select id, on_chain_round_id from challenge
       where challenge_date = current_date
       limit 1
     `;
 
     if (!challenge) {
-      return NextResponse.json({ error: "오늘 challenge 레코드가 없습니다." }, { status: 400 });
+      const { getOrCreateTonightChallenge } = await import("@/lib/repositories/challenges");
+      await getOrCreateTonightChallenge();
+      [challenge] = await sql<{ id: string; on_chain_round_id: number }[]>`
+        select id, on_chain_round_id from challenge
+        where challenge_date = current_date
+        limit 1
+      `;
+    }
+
+    if (!challenge) {
+      return NextResponse.json({ error: "오늘 challenge 레코드 생성 실패." }, { status: 500 });
     }
 
     const client = new TonClient({
@@ -81,11 +91,9 @@ export async function GET(request: Request) {
       apiKey: process.env.TONCENTER_API_KEY,
     });
 
-    // 컨트랙트 현재 roundId 조회
     const contractRoundId = await getContractRoundId(client, env.stakeVaultAddress);
     const nextRoundId = contractRoundId + 1;
 
-    // DB roundId와 컨트랙트 roundId가 이미 일치하면 skip
     if (challenge.on_chain_round_id === contractRoundId && contractRoundId > 0) {
       console.log(`[cron/open-round] 이미 처리됨. roundId=${contractRoundId}, skip.`);
       return NextResponse.json({ ok: true, skipped: true, reason: "already processed", roundId: contractRoundId });
@@ -116,9 +124,6 @@ export async function GET(request: Request) {
       })],
     });
 
-    console.log(`[cron/open-round] OpenRound tx sent: nextRoundId=${nextRoundId}, seqno=${seqno}`);
-
-    // 컨트랙트에 실제로 반영됐는지 확인 후 DB 업데이트
     const confirmed = await waitForRoundId(client, env.stakeVaultAddress, nextRoundId);
 
     if (confirmed) {
@@ -127,12 +132,8 @@ export async function GET(request: Request) {
         set on_chain_round_id = ${nextRoundId}
         where challenge_date = current_date
       `;
-      console.log(`[cron/open-round] confirmed & DB updated: roundId=${nextRoundId}`);
       return NextResponse.json({ ok: true, skipped: false, roundId: nextRoundId, closesAt, seqno, walletAddress });
     } else {
-      // 트랜잭션은 보냈지만 컨트랙트가 아직 안 바뀜 (실패했을 가능성)
-      // DB는 업데이트하지 않음 → 다음 cron 실행 시 재시도
-      console.error(`[cron/open-round] tx sent but contract roundId not updated after 30s`);
       return NextResponse.json({
         ok: false,
         error: "Tx sent but not confirmed on-chain within 30s. DB not updated. Will retry next run.",
